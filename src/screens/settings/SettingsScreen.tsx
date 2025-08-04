@@ -13,7 +13,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 const SettingsScreen: React.FC = () => {
   const dispatch = useAppDispatch();
   const isDark = useAppSelector(state => state.theme.isDark);
-  const { user } = useAppSelector(state => state.auth);
+  const { user, isAuthenticated } = useAppSelector(state => state.auth);
   const theme = isDark ? darkTheme : lightTheme;
   const navigation = useNavigation();
   
@@ -36,8 +36,12 @@ const SettingsScreen: React.FC = () => {
           style: 'destructive',
           onPress: async () => {
             try {
-              console.log('SettingsScreen: Logging out...');
-              await dispatch(logout()).unwrap();
+              console.log('SettingsScreen: Starting logout process...');
+              console.log('SettingsScreen: Current auth state before logout:', { isAuthenticated, user });
+              
+              const result = await dispatch(logout()).unwrap();
+              console.log('SettingsScreen: Logout dispatch result:', result);
+              
               console.log('SettingsScreen: Logout successful');
             } catch (error) {
               console.error('SettingsScreen: Logout error:', error);

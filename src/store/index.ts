@@ -17,8 +17,13 @@ export const store = configureStore({
     getDefaultMiddleware({
       serializableCheck: {
         ignoredActions: ['persist/PERSIST', 'persist/REHYDRATE'],
+        ignoredPaths: ['auth.user', 'task.tasks'],
+      },
+      immutableCheck: {
+        ignoredPaths: ['auth.user', 'task.tasks'],
       },
     }),
+  devTools: process.env.NODE_ENV !== 'production',
 });
 
 export type RootState = ReturnType<typeof store.getState>;
