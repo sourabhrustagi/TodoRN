@@ -117,8 +117,11 @@ const taskSlice = createSlice({
         state.error = null;
       })
       .addCase(createTask.fulfilled, (state, action) => {
+        console.log('TaskSlice: createTask fulfilled, current tasks count:', state.tasks.length);
+        console.log('TaskSlice: New task to add:', action.payload);
         state.isLoading = false;
         state.tasks.unshift(action.payload);
+        console.log('TaskSlice: Tasks after adding new task:', state.tasks.length);
       })
       .addCase(createTask.rejected, (state, action) => {
         state.isLoading = false;

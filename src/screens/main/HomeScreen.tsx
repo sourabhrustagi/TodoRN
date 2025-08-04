@@ -78,9 +78,19 @@ const HomeScreen: React.FC = () => {
       return;
     }
 
+    console.log('HomeScreen: Starting task creation...');
+    console.log('HomeScreen: Current tasks count:', tasks.length);
+    console.log('HomeScreen: Task data:', {
+      title: newTaskTitle.trim(),
+      description: newTaskDescription.trim(),
+      priority: newTaskPriority,
+      dueDate: undefined,
+      categoryId: '',
+    });
+
     setIsCreating(true);
     try {
-      await dispatch(createTask({
+      const result = await dispatch(createTask({
         title: newTaskTitle.trim(),
         description: newTaskDescription.trim(),
         priority: newTaskPriority,
@@ -88,8 +98,12 @@ const HomeScreen: React.FC = () => {
         categoryId: '',
       })).unwrap();
 
+      console.log('HomeScreen: Task created successfully:', result);
+      console.log('HomeScreen: New tasks count:', tasks.length + 1);
+      
       hideDialog();
     } catch (error) {
+      console.error('HomeScreen: Error creating task:', error);
       Alert.alert('Error', 'Failed to create task');
     } finally {
       setIsCreating(false);

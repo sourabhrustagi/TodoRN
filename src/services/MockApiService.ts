@@ -197,14 +197,19 @@ class MockApiService {
 
     const tasksJson = await AsyncStorage.getItem(STORAGE_KEYS.TASKS);
     if (tasksJson) {
-      const tasks = JSON.parse(tasksJson);
-      return tasks.map((task: any) => ({
-        ...task,
-        createdAt: new Date(task.createdAt),
-        updatedAt: new Date(task.updatedAt),
-        dueDate: task.dueDate ? new Date(task.dueDate) : null,
-        reminderTime: task.reminderTime ? new Date(task.reminderTime) : null,
-      }));
+      try {
+        const tasks = JSON.parse(tasksJson);
+        return tasks.map((task: any) => ({
+          ...task,
+          createdAt: new Date(task.createdAt),
+          updatedAt: new Date(task.updatedAt),
+          dueDate: task.dueDate ? new Date(task.dueDate) : null,
+          reminderTime: task.reminderTime ? new Date(task.reminderTime) : null,
+        }));
+      } catch (error) {
+        console.error('MockApiService: Error parsing tasks from storage:', error);
+        return [];
+      }
     }
     return [];
   }
@@ -218,32 +223,46 @@ class MockApiService {
       throw new Error('Network error: Failed to create task');
     }
 
-    const tasks = await this.getTasks(userId);
-    const newTask: Task = {
-      id: `task_${Date.now()}`,
-      title: request.title,
-      description: request.description,
-      completed: false,
-      priority: request.priority,
-      dueDate: request.dueDate || null,
-      categoryId: request.categoryId,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      userId,
-      tags: [],
-      repeatInterval: 'none',
-      attachments: [],
-      notes: '',
-    };
+    try {
+      const tasks = await this.getTasks(userId);
+      console.log('MockApiService: Current tasks before creating new one:', tasks.length);
+      
+      const newTask: Task = {
+        id: `task_${Date.now()}`,
+        title: request.title,
+        description: request.description,
+        completed: false,
+        priority: request.priority,
+        dueDate: request.dueDate || null,
+        categoryId: request.categoryId,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        userId,
+        tags: [],
+        repeatInterval: 'none',
+        attachments: [],
+        notes: '',
+      };
 
-    tasks.push(newTask);
-    await AsyncStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(tasks));
-    
-    return {
-      success: true,
-      task: newTask,
-      message: 'Task created successfully',
-    };
+      console.log('MockApiService: New task created:', newTask);
+      
+      tasks.push(newTask);
+      await AsyncStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(tasks));
+      
+      console.log('MockApiService: Task saved to storage, total tasks:', tasks.length);
+      
+      return {
+        success: true,
+        task: newTask,
+        message: 'Task created successfully',
+      };
+    } catch (error) {
+      console.error('MockApiService: Error creating task:', error);
+      return {
+        success: false,
+        message: 'Failed to create task',
+      };
+    }
   }
 
   async updateTask(taskId: string, updates: UpdateTaskRequest, userId: string = 'default'): Promise<{ success: boolean; task?: Task; message: string }> {
