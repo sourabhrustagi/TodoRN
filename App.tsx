@@ -4,9 +4,8 @@ import { AppRegistry } from 'react-native';
 import { Provider as PaperProvider } from 'react-native-paper';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { AuthProvider } from './src/contexts/AuthContext';
-import { ThemeProvider } from './src/contexts/ThemeContext';
-import { TaskProvider } from './src/contexts/TaskContext';
+import { Provider as ReduxProvider } from 'react-redux';
+import { store } from './src/store';
 import AppNavigator from './src/navigation/AppNavigator';
 
 // Error boundary component
@@ -42,22 +41,18 @@ class ErrorBoundary extends React.Component<
 }
 
 function App() {
-  console.log('App: Starting full App component');
+  console.log('App: Starting full App component with Redux');
   
   return (
     <ErrorBoundary>
-      <SafeAreaProvider>
-        <AuthProvider>
-          <ThemeProvider>
-            <TaskProvider>
-              <PaperProvider>
-                <StatusBar style="auto" />
-                <AppNavigator />
-              </PaperProvider>
-            </TaskProvider>
-          </ThemeProvider>
-        </AuthProvider>
-      </SafeAreaProvider>
+      <ReduxProvider store={store}>
+        <SafeAreaProvider>
+          <PaperProvider>
+            <StatusBar style="auto" />
+            <AppNavigator />
+          </PaperProvider>
+        </SafeAreaProvider>
+      </ReduxProvider>
     </ErrorBoundary>
   );
 }

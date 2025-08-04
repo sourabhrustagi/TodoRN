@@ -17,20 +17,22 @@ import {
   Snackbar
 } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useAuth } from '../../contexts/AuthContext';
-import { useTheme } from '../../contexts/ThemeContext';
+import { useAppDispatch, useAppSelector } from '../../store/hooks';
+import { sendOtp } from '../../store/slices/authSlice';
 import { useNavigation } from '@react-navigation/native';
+import { lightTheme, darkTheme } from '../../constants/theme';
 
 const { width } = Dimensions.get('window');
 
 const LoginScreen: React.FC = () => {
-  const { theme } = useTheme();
-  const { sendOtp, state } = useAuth();
+  const dispatch = useAppDispatch();
+  const { isLoading, error } = useAppSelector(state => state.auth);
+  const isDark = useAppSelector(state => state.theme.isDark);
+  const theme = isDark ? darkTheme : lightTheme;
   const navigation = useNavigation();
   
   // State management
   const [phoneNumber, setPhoneNumber] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
   const [showSnackbar, setShowSnackbar] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
   
@@ -78,27 +80,19 @@ const LoginScreen: React.FC = () => {
       return;
     }
 
-    setIsLoading(true);
-    
     try {
       console.log('LoginScreen: Sending OTP for phone:', phoneNumber);
-      const success = await sendOtp(phoneNumber);
+      const result = await dispatch(sendOtp(phoneNumber)).unwrap();
       
-      if (success) {
-        console.log('LoginScreen: OTP sent successfully, navigating to OTP screen');
-        setSnackbarMessage('OTP sent successfully!');
-        setShowSnackbar(true);
-        
-        // Navigate to OTP screen with phone number
-        (navigation as any).navigate('Otp', { phone: phoneNumber });
-      } else {
-        showError(state.error || 'Failed to send OTP. Please try again.');
-      }
+      console.log('LoginScreen: OTP sent successfully, navigating to OTP screen');
+      setSnackbarMessage('OTP sent successfully!');
+      setShowSnackbar(true);
+      
+      // Navigate to OTP screen with phone number
+      (navigation as any).navigate('Otp', { phone: phoneNumber });
     } catch (error) {
       console.error('LoginScreen: Error sending OTP:', error);
-      showError('Network error. Please check your connection.');
-    } finally {
-      setIsLoading(false);
+      showError(error as string || 'Failed to send OTP. Please try again.');
     }
   };
 
@@ -179,7 +173,7 @@ const LoginScreen: React.FC = () => {
             </View>
 
             {/* Error Display */}
-            {state.error && (
+            {error && (
               <View style={styles.errorContainer}>
                 <IconButton
                   icon="alert-circle"
@@ -190,7 +184,7 @@ const LoginScreen: React.FC = () => {
                   variant="bodySmall" 
                   style={[styles.error, { color: theme.colors.error }]}
                 >
-                  {state.error}
+                  {error}
                 </Text>
               </View>
             )}

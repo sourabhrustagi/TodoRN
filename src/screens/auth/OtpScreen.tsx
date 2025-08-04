@@ -17,8 +17,9 @@ import {
   Snackbar
 } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useAuth } from '../../contexts/AuthContext';
-import { useTheme } from '../../contexts/ThemeContext';
+import { useAppDispatch, useAppSelector } from '../../store/hooks';
+import { verifyOtp } from '../../store/slices/authSlice';
+import { lightTheme, darkTheme } from '../../constants/theme';
 
 const { width } = Dimensions.get('window');
 
@@ -31,12 +32,13 @@ interface OtpScreenProps {
 }
 
 const OtpScreen: React.FC<OtpScreenProps> = ({ route }) => {
-  const { theme } = useTheme();
-  const { login, sendOtp, state } = useAuth();
+  const dispatch = useAppDispatch();
+  const { isLoading, error } = useAppSelector(state => state.auth);
+  const isDark = useAppSelector(state => state.theme.isDark);
+  const theme = isDark ? darkTheme : lightTheme;
   
   // State management
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
-  const [isLoading, setIsLoading] = useState(false);
   const [showSnackbar, setShowSnackbar] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
   
@@ -56,8 +58,6 @@ const OtpScreen: React.FC<OtpScreenProps> = ({ route }) => {
       useNativeDriver: true,
     }).start();
   }, [fadeAnim]);
-
-
 
   // Handle OTP input changes
   const handleOtpChange = (text: string, index: number) => {
@@ -98,28 +98,23 @@ const OtpScreen: React.FC<OtpScreenProps> = ({ route }) => {
     
     if (!validateOtp(otp)) {
       showError('Please enter a valid 6-digit OTP');
-      triggerShakeAnimation();
       return;
     }
 
-    setIsLoading(true);
-    
     try {
-      const success = await login({ phone: phoneNumber, otp: otpString });
+      console.log('OtpScreen: Verifying OTP:', otpString);
+      const result = await dispatch(verifyOtp({ phone: phoneNumber, otp: otpString })).unwrap();
       
-      if (success) {
-        setSnackbarMessage('Login successful!');
-        setShowSnackbar(true);
-        // Navigation will be handled by AuthContext
-      } else {
-        showError(state.error || 'Invalid OTP. Please try again.');
-        triggerShakeAnimation();
-      }
+      console.log('OtpScreen: OTP verified successfully');
+      setSnackbarMessage('Login successful!');
+      setShowSnackbar(true);
+      
+      // Clear OTP inputs
+      clearOtpInputs();
     } catch (error) {
-      showError('Network error. Please check your connection.');
+      console.error('OtpScreen: Error verifying OTP:', error);
+      showError(error as string || 'Invalid OTP. Please try again.');
       triggerShakeAnimation();
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -252,7 +247,7 @@ const OtpScreen: React.FC<OtpScreenProps> = ({ route }) => {
             </View>
 
             {/* Error Display */}
-            {state.error && (
+            {error && (
               <View style={styles.errorContainer}>
                 <IconButton
                   icon="alert-circle"
@@ -263,7 +258,7 @@ const OtpScreen: React.FC<OtpScreenProps> = ({ route }) => {
                   variant="bodySmall" 
                   style={[styles.error, { color: theme.colors.error }]}
                 >
-                  {state.error}
+                  {error}
                 </Text>
               </View>
             )}

@@ -2,8 +2,8 @@ import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
-import { useAuth } from '../contexts/AuthContext';
-import { useTheme } from '../contexts/ThemeContext';
+import { useAppSelector } from '../store/hooks';
+import { lightTheme, darkTheme } from '../constants/theme';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 // Auth Screens
@@ -49,7 +49,8 @@ const MainStack = () => (
 );
 
 const MainTabNavigator = () => {
-  const { theme } = useTheme();
+  const isDark = useAppSelector(state => state.theme.isDark);
+  const theme = isDark ? darkTheme : lightTheme;
   
   return (
     <Tab.Navigator
@@ -91,11 +92,11 @@ const MainTabNavigator = () => {
 };
 
 const AppNavigator = () => {
-  const { state } = useAuth();
+  const isAuthenticated = useAppSelector(state => state.auth.isAuthenticated);
   
   return (
     <NavigationContainer>
-      {state.isAuthenticated ? <MainStack /> : <AuthStack />}
+      {isAuthenticated ? <MainStack /> : <AuthStack />}
     </NavigationContainer>
   );
 };
