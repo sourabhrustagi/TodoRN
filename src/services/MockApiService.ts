@@ -276,7 +276,7 @@ class MockApiService {
   }
 
   async deleteTask(taskId: string, userId: string = 'default'): Promise<{ success: boolean; message: string }> {
-    console.log('MockApiService: deleteTask called for taskId:', taskId);
+    console.log('MockApiService: deleteTask called for taskId:', taskId, 'userId:', userId);
     
     await mockDelay(600);
     
@@ -285,8 +285,13 @@ class MockApiService {
     }
 
     const tasks = await this.getTasks(userId);
+    console.log('MockApiService: Current tasks count:', tasks.length);
+    
     const filteredTasks = tasks.filter(task => task.id !== taskId);
+    console.log('MockApiService: Filtered tasks count:', filteredTasks.length);
+    
     await AsyncStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(filteredTasks));
+    console.log('MockApiService: Task deleted successfully from storage');
     
     return {
       success: true,

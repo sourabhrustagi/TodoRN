@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { View, StyleSheet, ScrollView, Alert } from 'react-native';
-import { Text, Button, Card, FAB, Portal, Modal, TextInput, SegmentedButtons, Chip } from 'react-native-paper';
+import { Text, Button, Card, FAB, Portal, Modal, TextInput, SegmentedButtons, Chip, Searchbar, Menu, IconButton } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -9,11 +9,18 @@ import { useAuth } from '../../contexts/AuthContext';
 import { Task, Priority } from '../../types';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
+type SortOption = 'createdAt' | 'priority' | 'title' | 'dueDate';
+
 const HomeScreen: React.FC = () => {
   const { theme } = useTheme();
   const { state: taskState, deleteTask, createTask } = useTask();
   const { state: authState } = useAuth();
   const navigation = useNavigation();
+  
+  // Search and sort state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState<SortOption>('createdAt');
+  const [sortMenuVisible, setSortMenuVisible] = useState(false);
   
   // Dialog state
   const [visible, setVisible] = useState(false);
@@ -21,6 +28,40 @@ const HomeScreen: React.FC = () => {
   const [newTaskPriority, setNewTaskPriority] = useState<Priority>('medium');
   const [newTaskDescription, setNewTaskDescription] = useState('');
   const [isCreating, setIsCreating] = useState(false);
+
+  // Filtered and sorted tasks
+  const filteredAndSortedTasks = useMemo(() => {
+    let tasks = taskState.tasks;
+    
+    // Filter by search query
+    if (searchQuery.trim()) {
+      tasks = tasks.filter(task => 
+        task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        task.description.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
+    
+    // Sort tasks
+    tasks.sort((a, b) => {
+      switch (sortBy) {
+        case 'priority':
+          const priorityOrder = { high: 3, medium: 2, low: 1 };
+          return priorityOrder[b.priority] - priorityOrder[a.priority];
+        case 'title':
+          return a.title.localeCompare(b.title);
+        case 'dueDate':
+          if (!a.dueDate && !b.dueDate) return 0;
+          if (!a.dueDate) return 1;
+          if (!b.dueDate) return -1;
+          return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+        case 'createdAt':
+        default:
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      }
+    });
+    
+    return tasks;
+  }, [taskState.tasks, searchQuery, sortBy]);
 
   const showDialog = () => setVisible(true);
   const hideDialog = () => {
@@ -43,7 +84,7 @@ const HomeScreen: React.FC = () => {
         description: newTaskDescription.trim(),
         priority: newTaskPriority,
         dueDate: undefined,
-        categoryId: '', // Empty string for no category
+        categoryId: '',
       });
 
       if (success) {
@@ -71,8 +112,15 @@ const HomeScreen: React.FC = () => {
           style: 'destructive',
           onPress: async () => {
             try {
-              await deleteTask(task.id);
+              console.log('HomeScreen: Deleting task:', task.id);
+              const success = await deleteTask(task.id);
+              if (success) {
+                console.log('HomeScreen: Task deleted successfully');
+              } else {
+                Alert.alert('Error', 'Failed to delete task');
+              }
             } catch (error) {
+              console.error('HomeScreen: Error deleting task:', error);
               Alert.alert('Error', 'Failed to delete task');
             }
           },
@@ -99,6 +147,24 @@ const HomeScreen: React.FC = () => {
     }
   };
 
+  const getSortIcon = () => {
+    switch (sortBy) {
+      case 'priority': return 'flag';
+      case 'title': return 'sort-alphabetical-ascending';
+      case 'dueDate': return 'calendar';
+      default: return 'clock-outline';
+    }
+  };
+
+  const getSortLabel = () => {
+    switch (sortBy) {
+      case 'priority': return 'Priority';
+      case 'title': return 'Name';
+      case 'dueDate': return 'Due Date';
+      default: return 'Created';
+    }
+  };
+
   const formatDate = (date: Date) => {
     return date.toLocaleDateString('en-US', {
       month: 'short',
@@ -110,16 +176,80 @@ const HomeScreen: React.FC = () => {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <View style={styles.header}>
-        <Text variant="headlineMedium" style={[styles.title, { color: theme.colors.onSurface }]}>
-          Welcome back, {authState.user?.name || 'User'}!
-        </Text>
+        <View style={styles.headerTop}>
+          <Text variant="headlineMedium" style={[styles.title, { color: theme.colors.onSurface }]}>
+            Welcome back, {authState.user?.name || 'User'}!
+          </Text>
+          <Menu
+            visible={sortMenuVisible}
+            onDismiss={() => setSortMenuVisible(false)}
+            anchor={
+              <IconButton
+                icon={getSortIcon()}
+                size={24}
+                onPress={() => setSortMenuVisible(true)}
+                style={styles.sortButton}
+              />
+            }
+          >
+            <Menu.Item
+              onPress={() => {
+                setSortBy('createdAt');
+                setSortMenuVisible(false);
+              }}
+              title="Sort by Created"
+              leadingIcon="clock-outline"
+            />
+            <Menu.Item
+              onPress={() => {
+                setSortBy('priority');
+                setSortMenuVisible(false);
+              }}
+              title="Sort by Priority"
+              leadingIcon="flag"
+            />
+            <Menu.Item
+              onPress={() => {
+                setSortBy('title');
+                setSortMenuVisible(false);
+              }}
+              title="Sort by Name"
+              leadingIcon="sort-alphabetical-ascending"
+            />
+            <Menu.Item
+              onPress={() => {
+                setSortBy('dueDate');
+                setSortMenuVisible(false);
+              }}
+              title="Sort by Due Date"
+              leadingIcon="calendar"
+            />
+          </Menu>
+        </View>
         <Text variant="bodyMedium" style={[styles.subtitle, { color: theme.colors.onSurfaceVariant }]}>
           Manage your tasks efficiently
         </Text>
+        
+        {/* Search Bar */}
+        <Searchbar
+          placeholder="Search tasks..."
+          onChangeText={setSearchQuery}
+          value={searchQuery}
+          style={[styles.searchBar, { backgroundColor: theme.colors.surface }]}
+          iconColor={theme.colors.onSurfaceVariant}
+          inputStyle={{ color: theme.colors.onSurface }}
+        />
+        
+        {/* Sort indicator */}
+        <View style={styles.sortIndicator}>
+          <Text variant="bodySmall" style={[styles.sortText, { color: theme.colors.onSurfaceVariant }]}>
+            Sorted by: {getSortLabel()}
+          </Text>
+        </View>
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {taskState.tasks.length === 0 ? (
+        {filteredAndSortedTasks.length === 0 ? (
           <View style={styles.emptyState}>
             <MaterialCommunityIcons 
               name="clipboard-text-outline" 
@@ -127,15 +257,15 @@ const HomeScreen: React.FC = () => {
               color={theme.colors.outline} 
             />
             <Text variant="headlineSmall" style={[styles.emptyTitle, { color: theme.colors.onSurface }]}>
-              No tasks yet
+              {searchQuery.trim() ? 'No tasks found' : 'No tasks yet'}
             </Text>
             <Text variant="bodyMedium" style={[styles.emptySubtitle, { color: theme.colors.onSurfaceVariant }]}>
-              Tap the + button to create your first task
+              {searchQuery.trim() ? 'Try adjusting your search' : 'Tap the + button to create your first task'}
             </Text>
           </View>
         ) : (
           <View style={styles.taskList}>
-            {taskState.tasks.map((task) => (
+            {filteredAndSortedTasks.map((task) => (
               <Card
                 key={task.id}
                 style={[styles.taskCard, { backgroundColor: theme.colors.surface }]}
@@ -283,12 +413,32 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingBottom: 10,
   },
-  title: {
-    fontWeight: 'bold',
+  headerTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 4,
   },
+  title: {
+    fontWeight: 'bold',
+    flex: 1,
+  },
   subtitle: {
-    marginBottom: 20,
+    marginBottom: 16,
+  },
+  searchBar: {
+    marginBottom: 8,
+    elevation: 2,
+  },
+  sortButton: {
+    marginLeft: 8,
+  },
+  sortIndicator: {
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  sortText: {
+    fontStyle: 'italic',
   },
   content: {
     flex: 1,

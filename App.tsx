@@ -42,7 +42,7 @@ class ErrorBoundary extends React.Component<
 }
 
 function App() {
-  console.log('App: Starting App component');
+  console.log('App: Starting full App component');
   
   return (
     <ErrorBoundary>

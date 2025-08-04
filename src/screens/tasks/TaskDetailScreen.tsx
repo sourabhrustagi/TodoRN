@@ -93,11 +93,18 @@ const TaskDetailScreen: React.FC<TaskDetailScreenProps> = ({ route }) => {
           style: 'destructive',
           onPress: async () => {
             try {
+              console.log('TaskDetailScreen: Attempting to delete task:', task.id);
               const success = await deleteTask(task.id);
+              console.log('TaskDetailScreen: Delete result:', success);
               if (success) {
-                (navigation as any).goBack();
+                console.log('TaskDetailScreen: Task deleted successfully, navigating back');
+                // Force navigation back to home
+                (navigation as any).navigate('MainTabs', { screen: 'Home' });
+              } else {
+                Alert.alert('Error', 'Failed to delete task');
               }
             } catch (error) {
+              console.error('TaskDetailScreen: Error deleting task:', error);
               Alert.alert('Error', 'Failed to delete task');
             }
           },

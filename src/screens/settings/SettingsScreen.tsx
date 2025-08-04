@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, StyleSheet, ScrollView, Alert } from 'react-native';
-import { Text, List, Switch, Button, Divider, Portal, Modal, TextInput, SegmentedButtons } from 'react-native-paper';
+import { Text, List, Switch, Button, Divider, Portal, Modal, TextInput, SegmentedButtons, Snackbar } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -8,7 +8,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 const SettingsScreen: React.FC = () => {
-  const { theme, isDark, isAuto, toggleTheme, setAutoTheme } = useTheme();
+  const { theme, isDark, toggleTheme } = useTheme();
   const { logout, state: authState } = useAuth();
   const navigation = useNavigation();
   
@@ -18,6 +18,7 @@ const SettingsScreen: React.FC = () => {
   const [feedbackComment, setFeedbackComment] = useState('');
   const [feedbackCategory, setFeedbackCategory] = useState('general');
   const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
+  const [showSuccessSnackbar, setShowSuccessSnackbar] = useState(false);
 
   const handleLogout = () => {
     Alert.alert(
@@ -30,8 +31,11 @@ const SettingsScreen: React.FC = () => {
           style: 'destructive',
           onPress: async () => {
             try {
+              console.log('SettingsScreen: Logging out...');
               await logout();
+              console.log('SettingsScreen: Logout successful');
             } catch (error) {
+              console.error('SettingsScreen: Logout error:', error);
               Alert.alert('Error', 'Failed to logout');
             }
           },
@@ -52,14 +56,17 @@ const SettingsScreen: React.FC = () => {
 
     setIsSubmittingFeedback(true);
     try {
-      // Here you would typically call your feedback API
-      // For now, we'll just show a success message
-      Alert.alert('Success', 'Thank you for your feedback!');
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      console.log('SettingsScreen: Feedback submitted successfully');
+      setShowSuccessSnackbar(true);
       setFeedbackVisible(false);
       setFeedbackComment('');
       setFeedbackRating(5);
       setFeedbackCategory('general');
     } catch (error) {
+      console.error('SettingsScreen: Feedback submission error:', error);
       Alert.alert('Error', 'Failed to submit feedback');
     } finally {
       setIsSubmittingFeedback(false);
@@ -67,12 +74,10 @@ const SettingsScreen: React.FC = () => {
   };
 
   const getThemeIcon = () => {
-    if (isAuto) return 'theme-light-dark';
     return isDark ? 'weather-night' : 'weather-sunny';
   };
 
   const getThemeText = () => {
-    if (isAuto) return 'Auto';
     return isDark ? 'Dark' : 'Light';
   };
 
@@ -132,28 +137,6 @@ const SettingsScreen: React.FC = () => {
               <Switch
                 value={isDark}
                 onValueChange={toggleTheme}
-                color={theme.colors.primary}
-              />
-            )}
-            style={[styles.listItem, { backgroundColor: theme.colors.surface }]}
-            titleStyle={{ color: theme.colors.onSurface }}
-            descriptionStyle={{ color: theme.colors.onSurfaceVariant }}
-          />
-          
-          <List.Item
-            title="Auto Theme"
-            description="Follow system theme"
-            left={(props) => (
-              <MaterialCommunityIcons 
-                name="theme-light-dark" 
-                size={24} 
-                color={theme.colors.primary} 
-              />
-            )}
-            right={() => (
-              <Switch
-                value={isAuto}
-                onValueChange={setAutoTheme}
                 color={theme.colors.primary}
               />
             )}
@@ -277,6 +260,22 @@ const SettingsScreen: React.FC = () => {
           </View>
         </Modal>
       </Portal>
+
+      {/* Success Snackbar */}
+      <Snackbar
+        visible={showSuccessSnackbar}
+        onDismiss={() => setShowSuccessSnackbar(false)}
+        duration={3000}
+        style={[styles.snackbar, { backgroundColor: theme.colors.primaryContainer }]}
+        action={{
+          label: 'Dismiss',
+          onPress: () => setShowSuccessSnackbar(false),
+        }}
+      >
+        <Text style={{ color: theme.colors.onPrimaryContainer }}>
+          Thank you for your feedback!
+        </Text>
+      </Snackbar>
     </SafeAreaView>
   );
 };
@@ -339,6 +338,9 @@ const styles = StyleSheet.create({
   },
   modalButton: {
     flex: 1,
+  },
+  snackbar: {
+    marginBottom: 20,
   },
 });
 
