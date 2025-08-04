@@ -3,13 +3,18 @@ import { View, StyleSheet, ScrollView, Alert } from 'react-native';
 import { Text, List, Switch, Button, Divider, Portal, Modal, TextInput, SegmentedButtons, Snackbar } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import { useTheme } from '../../contexts/ThemeContext';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAppDispatch, useAppSelector } from '../../store/hooks';
+import { logout } from '../../store/slices/authSlice';
+import { toggleTheme } from '../../store/slices/themeSlice';
+import { submitFeedback } from '../../store/slices/feedbackSlice';
+import { lightTheme, darkTheme } from '../../constants/theme';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 const SettingsScreen: React.FC = () => {
-  const { theme, isDark, toggleTheme } = useTheme();
-  const { logout, state: authState } = useAuth();
+  const dispatch = useAppDispatch();
+  const isDark = useAppSelector(state => state.theme.isDark);
+  const { user } = useAppSelector(state => state.auth);
+  const theme = isDark ? darkTheme : lightTheme;
   const navigation = useNavigation();
   
   // Feedback modal state
@@ -32,7 +37,7 @@ const SettingsScreen: React.FC = () => {
           onPress: async () => {
             try {
               console.log('SettingsScreen: Logging out...');
-              await logout();
+              await dispatch(logout()).unwrap();
               console.log('SettingsScreen: Logout successful');
             } catch (error) {
               console.error('SettingsScreen: Logout error:', error);
@@ -56,8 +61,11 @@ const SettingsScreen: React.FC = () => {
 
     setIsSubmittingFeedback(true);
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await dispatch(submitFeedback({
+        rating: feedbackRating,
+        comment: feedbackComment.trim(),
+        category: feedbackCategory,
+      })).unwrap();
       
       console.log('SettingsScreen: Feedback submitted successfully');
       setShowSuccessSnackbar(true);
@@ -70,6 +78,14 @@ const SettingsScreen: React.FC = () => {
       Alert.alert('Error', 'Failed to submit feedback');
     } finally {
       setIsSubmittingFeedback(false);
+    }
+  };
+
+  const handleToggleTheme = async () => {
+    try {
+      await dispatch(toggleTheme()).unwrap();
+    } catch (error) {
+      console.error('SettingsScreen: Theme toggle error:', error);
     }
   };
 
@@ -99,9 +115,9 @@ const SettingsScreen: React.FC = () => {
             Account
           </List.Subheader>
           
-          <List.Item
-            title={authState.user?.name || 'User'}
-            description={authState.user?.phone || 'No phone number'}
+                      <List.Item
+              title={user?.name || 'User'}
+              description={user?.phone || 'No phone number'}
             left={(props) => (
               <MaterialCommunityIcons 
                 name="account-circle" 
@@ -136,7 +152,7 @@ const SettingsScreen: React.FC = () => {
             right={() => (
               <Switch
                 value={isDark}
-                onValueChange={toggleTheme}
+                onValueChange={handleToggleTheme}
                 color={theme.colors.primary}
               />
             )}

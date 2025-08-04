@@ -3,18 +3,19 @@ import { View, StyleSheet, ScrollView, Alert } from 'react-native';
 import { Text, Button, Card, FAB, Portal, Modal, TextInput, SegmentedButtons, Chip, Searchbar, Menu, IconButton } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import { useTheme } from '../../contexts/ThemeContext';
-import { useTask } from '../../contexts/TaskContext';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAppDispatch, useAppSelector } from '../../store/hooks';
+import { createTask, deleteTask } from '../../store/slices/taskSlice';
 import { Task, Priority } from '../../types';
+import { lightTheme, darkTheme } from '../../constants/theme';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 type SortOption = 'createdAt' | 'priority' | 'title' | 'dueDate';
 
 const HomeScreen: React.FC = () => {
-  const { theme } = useTheme();
-  const { state: taskState, deleteTask, createTask } = useTask();
-  const { state: authState } = useAuth();
+  const dispatch = useAppDispatch();
+  const { tasks, isLoading } = useAppSelector(state => state.task);
+  const isDark = useAppSelector(state => state.theme.isDark);
+  const theme = isDark ? darkTheme : lightTheme;
   const navigation = useNavigation();
   
   // Search and sort state
@@ -31,18 +32,18 @@ const HomeScreen: React.FC = () => {
 
   // Filtered and sorted tasks
   const filteredAndSortedTasks = useMemo(() => {
-    let tasks = taskState.tasks;
+    let filteredTasks = tasks;
     
     // Filter by search query
     if (searchQuery.trim()) {
-      tasks = tasks.filter(task => 
+      filteredTasks = filteredTasks.filter(task => 
         task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         task.description.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
     
     // Sort tasks
-    tasks.sort((a, b) => {
+    filteredTasks.sort((a, b) => {
       switch (sortBy) {
         case 'priority':
           const priorityOrder = { high: 3, medium: 2, low: 1 };
@@ -60,8 +61,8 @@ const HomeScreen: React.FC = () => {
       }
     });
     
-    return tasks;
-  }, [taskState.tasks, searchQuery, sortBy]);
+    return filteredTasks;
+  }, [tasks, searchQuery, sortBy]);
 
   const showDialog = () => setVisible(true);
   const hideDialog = () => {
@@ -79,17 +80,15 @@ const HomeScreen: React.FC = () => {
 
     setIsCreating(true);
     try {
-      const success = await createTask({
+      await dispatch(createTask({
         title: newTaskTitle.trim(),
         description: newTaskDescription.trim(),
         priority: newTaskPriority,
         dueDate: undefined,
         categoryId: '',
-      });
+      })).unwrap();
 
-      if (success) {
-        hideDialog();
-      }
+      hideDialog();
     } catch (error) {
       Alert.alert('Error', 'Failed to create task');
     } finally {
@@ -101,7 +100,7 @@ const HomeScreen: React.FC = () => {
     (navigation as any).navigate('TaskDetail', { taskId: task.id });
   };
 
-  const handleDeleteTask = (task: Task) => {
+  const handleDeleteTask = async (task: Task) => {
     Alert.alert(
       'Delete Task',
       `Are you sure you want to delete "${task.title}"?`,
@@ -113,12 +112,8 @@ const HomeScreen: React.FC = () => {
           onPress: async () => {
             try {
               console.log('HomeScreen: Deleting task:', task.id);
-              const success = await deleteTask(task.id);
-              if (success) {
-                console.log('HomeScreen: Task deleted successfully');
-              } else {
-                Alert.alert('Error', 'Failed to delete task');
-              }
+              await dispatch(deleteTask(task.id)).unwrap();
+              console.log('HomeScreen: Task deleted successfully');
             } catch (error) {
               console.error('HomeScreen: Error deleting task:', error);
               Alert.alert('Error', 'Failed to delete task');
@@ -178,7 +173,7 @@ const HomeScreen: React.FC = () => {
       <View style={styles.header}>
         <View style={styles.headerTop}>
           <Text variant="headlineMedium" style={[styles.title, { color: theme.colors.onSurface }]}>
-            Welcome back, {authState.user?.name || 'User'}!
+            Welcome back, {/* authState.user?.name || 'User' */}!
           </Text>
           <Menu
             visible={sortMenuVisible}

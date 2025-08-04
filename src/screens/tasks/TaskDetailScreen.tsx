@@ -3,9 +3,10 @@ import { View, StyleSheet, ScrollView, Alert } from 'react-native';
 import { Text, Button, Card, Chip, Portal, Modal, TextInput, SegmentedButtons } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { useTheme } from '../../contexts/ThemeContext';
-import { useTask } from '../../contexts/TaskContext';
+import { useAppDispatch, useAppSelector } from '../../store/hooks';
+import { updateTask, deleteTask } from '../../store/slices/taskSlice';
 import { Task, Priority } from '../../types';
+import { lightTheme, darkTheme } from '../../constants/theme';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 interface TaskDetailScreenProps {
@@ -17,13 +18,14 @@ interface TaskDetailScreenProps {
 }
 
 const TaskDetailScreen: React.FC<TaskDetailScreenProps> = ({ route }) => {
-  const { theme } = useTheme();
-  const { getTaskById, updateTask, deleteTask } = useTask();
+  const dispatch = useAppDispatch();
+  const { tasks } = useAppSelector(state => state.task);
+  const isDark = useAppSelector(state => state.theme.isDark);
+  const theme = isDark ? darkTheme : lightTheme;
   const navigation = useNavigation();
   
   const taskId = route?.params?.taskId;
   const [task, setTask] = useState<Task | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
   
   // Edit modal state
   const [editVisible, setEditVisible] = useState(false);
@@ -35,7 +37,7 @@ const TaskDetailScreen: React.FC<TaskDetailScreenProps> = ({ route }) => {
 
   useEffect(() => {
     if (taskId) {
-      const foundTask = getTaskById(taskId);
+      const foundTask = tasks.find(t => t.id === taskId);
       if (foundTask) {
         setTask(foundTask);
         setEditTitle(foundTask.title);
@@ -44,7 +46,7 @@ const TaskDetailScreen: React.FC<TaskDetailScreenProps> = ({ route }) => {
         setEditCompleted(foundTask.completed);
       }
     }
-  }, [taskId, getTaskById]);
+  }, [taskId, tasks]);
 
   const handleEdit = () => {
     setEditVisible(true);
@@ -58,20 +60,19 @@ const TaskDetailScreen: React.FC<TaskDetailScreenProps> = ({ route }) => {
 
     setIsSaving(true);
     try {
-      const success = await updateTask(task.id, {
+      await dispatch(updateTask({
+        id: task.id,
         title: editTitle.trim(),
         description: editDescription.trim(),
         priority: editPriority,
         completed: editCompleted,
-      });
+      })).unwrap();
 
-      if (success) {
-        setEditVisible(false);
-        // Refresh task data
-        const updatedTask = getTaskById(task.id);
-        if (updatedTask) {
-          setTask(updatedTask);
-        }
+      setEditVisible(false);
+      // Refresh task data
+      const updatedTask = tasks.find(t => t.id === task.id);
+      if (updatedTask) {
+        setTask(updatedTask);
       }
     } catch (error) {
       Alert.alert('Error', 'Failed to update task');
@@ -94,15 +95,11 @@ const TaskDetailScreen: React.FC<TaskDetailScreenProps> = ({ route }) => {
           onPress: async () => {
             try {
               console.log('TaskDetailScreen: Attempting to delete task:', task.id);
-              const success = await deleteTask(task.id);
-              console.log('TaskDetailScreen: Delete result:', success);
-              if (success) {
-                console.log('TaskDetailScreen: Task deleted successfully, navigating back');
-                // Force navigation back to home
-                (navigation as any).navigate('MainTabs', { screen: 'Home' });
-              } else {
-                Alert.alert('Error', 'Failed to delete task');
-              }
+              await dispatch(deleteTask(task.id)).unwrap();
+              console.log('TaskDetailScreen: Task deleted successfully, navigating back');
+              
+              // Navigate back to home screen
+              (navigation as any).navigate('MainTabs', { screen: 'Home' });
             } catch (error) {
               console.error('TaskDetailScreen: Error deleting task:', error);
               Alert.alert('Error', 'Failed to delete task');
