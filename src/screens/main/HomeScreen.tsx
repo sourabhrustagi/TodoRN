@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { View, StyleSheet, ScrollView, Alert } from 'react-native';
 import { Text, Button, Card, FAB, Portal, Modal, TextInput, SegmentedButtons, Chip, Searchbar, Menu, IconButton } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -8,6 +8,11 @@ import { createTask, deleteTask } from '../../store/slices/taskSlice';
 import { Task, Priority } from '../../types';
 import { lightTheme, darkTheme } from '../../constants/theme';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { validateTaskTitle, validateTaskDescription } from '../../utils/validation';
+import { debounce, measurePerformance } from '../../utils/performance';
+import { logTask, trackUserAction } from '../../utils/logger';
+import { useAccessibility } from '../../hooks/useAccessibility';
+import { APP_CONSTANTS } from '../../constants/app';
 
 type SortOption = 'low' | 'medium' | 'high';
 
@@ -17,6 +22,7 @@ const HomeScreen: React.FC = () => {
   const isDark = useAppSelector(state => state.theme.isDark);
   const theme = isDark ? darkTheme : lightTheme;
   const navigation = useNavigation();
+  const accessibility = useAccessibility();
   
   // Search and sort state
   const [searchQuery, setSearchQuery] = useState('');
@@ -35,7 +41,15 @@ const HomeScreen: React.FC = () => {
   const [taskToDelete, setTaskToDelete] = useState<Task | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Filtered and sorted tasks
+  // Debounced search
+  const debouncedSearch = useCallback(
+    debounce((query: string) => {
+      trackUserAction('search_tasks', { query });
+    }, APP_CONSTANTS.DEBOUNCE.SEARCH),
+    []
+  );
+
+  // Filtered and sorted tasks with memoization
   const filteredAndSortedTasks = useMemo(() => {
     try {
       let filteredTasks = tasks;
@@ -68,33 +82,37 @@ const HomeScreen: React.FC = () => {
     }
   }, [tasks, searchQuery, sortBy]);
 
-  const showDialog = () => setVisible(true);
-  const hideDialog = () => {
+  const showDialog = useCallback(() => {
+    setVisible(true);
+    trackUserAction('open_create_task_dialog');
+  }, []);
+
+  const hideDialog = useCallback(() => {
     setVisible(false);
     setNewTaskTitle('');
     setNewTaskDescription('');
     setNewTaskPriority('medium');
-  };
+  }, []);
 
-  const handleCreateTask = async () => {
-    if (!newTaskTitle.trim()) {
-      Alert.alert('Error', 'Please enter a task title');
+  const handleCreateTask = useCallback(async () => {
+    // Validate task data
+    const titleValidation = validateTaskTitle(newTaskTitle);
+    const descriptionValidation = validateTaskDescription(newTaskDescription);
+    
+    if (!titleValidation.isValid) {
+      Alert.alert('Error', titleValidation.message);
+      return;
+    }
+    
+    if (!descriptionValidation.isValid) {
+      Alert.alert('Error', descriptionValidation.message);
       return;
     }
 
-    console.log('HomeScreen: Starting task creation...');
-    console.log('HomeScreen: Current tasks count:', tasks.length);
-    console.log('HomeScreen: Task data:', {
-      title: newTaskTitle.trim(),
-      description: newTaskDescription.trim(),
-      priority: newTaskPriority,
-      dueDate: undefined,
-      categoryId: '',
-    });
-
+    const startTime = Date.now();
+    
     setIsCreating(true);
     try {
-      // Validate task data before creating
       const taskData = {
         title: newTaskTitle.trim(),
         description: newTaskDescription.trim(),
@@ -103,52 +121,48 @@ const HomeScreen: React.FC = () => {
         categoryId: '',
       };
 
-      // Additional validation
-      if (taskData.title.length > 100) {
-        Alert.alert('Error', 'Task title is too long (max 100 characters)');
-        return;
-      }
+      const result = await measurePerformance(
+        () => dispatch(createTask(taskData)).unwrap(),
+        'create_task'
+      );
 
-      if (taskData.description.length > 500) {
-        Alert.alert('Error', 'Task description is too long (max 500 characters)');
-        return;
-      }
-
-      const result = await dispatch(createTask(taskData)).unwrap();
-
-      console.log('HomeScreen: Task created successfully:', result);
-      console.log('HomeScreen: New tasks count:', tasks.length + 1);
+      logTask('created', result.id, { title: result.title, priority: result.priority });
+      trackUserAction('task_created', { taskId: result.id, priority: result.priority });
       
       hideDialog();
     } catch (error) {
       console.error('HomeScreen: Error creating task:', error);
-      Alert.alert('Error', 'Failed to create task');
+      Alert.alert('Error', 'Failed to create task. Please try again.');
     } finally {
       setIsCreating(false);
     }
-  };
+  }, [newTaskTitle, newTaskDescription, newTaskPriority, dispatch, hideDialog]);
 
-  const handleTaskPress = (task: Task) => {
+  const handleTaskPress = useCallback((task: Task) => {
+    trackUserAction('task_pressed', { taskId: task.id, title: task.title });
     (navigation as any).navigate('TaskDetail', { taskId: task.id });
-  };
+  }, [navigation]);
 
-  const handleDeleteTask = async (task: Task) => {
-    console.log('HomeScreen: handleDeleteTask called for task:', task.id, task.title);
+  const handleDeleteTask = useCallback((task: Task) => {
+    logTask('delete_requested', task.id, { title: task.title });
     setTaskToDelete(task);
     setDeleteDialogVisible(true);
-  };
+  }, []);
 
-  const handleConfirmDelete = async () => {
+  const handleConfirmDelete = useCallback(async () => {
     if (!taskToDelete) return;
 
-    console.log('HomeScreen: User confirmed delete for task:', taskToDelete.id);
-    console.log('HomeScreen: Current tasks count before delete:', tasks.length);
+    const startTime = Date.now();
     
     setIsDeleting(true);
     try {
-      const result = await dispatch(deleteTask(taskToDelete.id)).unwrap();
-      console.log('HomeScreen: Delete dispatch result:', result);
-      console.log('HomeScreen: Task deleted successfully');
+      const result = await measurePerformance(
+        () => dispatch(deleteTask(taskToDelete.id)).unwrap(),
+        'delete_task'
+      );
+      
+      logTask('deleted', taskToDelete.id, { title: taskToDelete.title });
+      trackUserAction('task_deleted', { taskId: taskToDelete.id, title: taskToDelete.title });
       
       setDeleteDialogVisible(false);
       setTaskToDelete(null);
@@ -158,13 +172,17 @@ const HomeScreen: React.FC = () => {
     } finally {
       setIsDeleting(false);
     }
-  };
+  }, [taskToDelete, dispatch]);
 
-  const handleCancelDelete = () => {
-    console.log('HomeScreen: Delete cancelled by user');
+  const handleCancelDelete = useCallback(() => {
     setDeleteDialogVisible(false);
     setTaskToDelete(null);
-  };
+  }, []);
+
+  const handleSearchChange = useCallback((query: string) => {
+    setSearchQuery(query);
+    debouncedSearch(query);
+  }, [debouncedSearch]);
 
   const getPriorityColor = (priority: Priority) => {
     switch (priority) {
@@ -262,11 +280,12 @@ const HomeScreen: React.FC = () => {
         {/* Search Bar */}
         <Searchbar
           placeholder="Search tasks..."
-          onChangeText={setSearchQuery}
+          onChangeText={handleSearchChange}
           value={searchQuery}
           style={[styles.searchBar, { backgroundColor: theme.colors.surface }]}
           iconColor={theme.colors.onSurfaceVariant}
           inputStyle={{ color: theme.colors.onSurface }}
+          {...accessibility.getInputAccessibilityProps('Search tasks', 'Enter text to search for tasks')}
         />
         
         {/* Sort indicator */}
@@ -278,27 +297,19 @@ const HomeScreen: React.FC = () => {
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {filteredAndSortedTasks.length === 0 ? (
-          <View style={styles.emptyState}>
-            <MaterialCommunityIcons 
-              name="clipboard-text-outline" 
-              size={64} 
-              color={theme.colors.outline} 
-            />
-            <Text variant="headlineSmall" style={[styles.emptyTitle, { color: theme.colors.onSurface }]}>
-              {searchQuery.trim() ? 'No tasks found' : 'No tasks yet'}
-            </Text>
-            <Text variant="bodyMedium" style={[styles.emptySubtitle, { color: theme.colors.onSurfaceVariant }]}>
-              {searchQuery.trim() ? 'Try adjusting your search' : 'Tap the + button to create your first task'}
-            </Text>
-          </View>
-        ) : (
+        
+        {/* Tasks List */}
+        {filteredAndSortedTasks.length > 0 ? (
           <View style={styles.taskList}>
             {filteredAndSortedTasks.map((task) => (
               <Card
                 key={task.id}
                 style={[styles.taskCard, { backgroundColor: theme.colors.surface }]}
                 onPress={() => handleTaskPress(task)}
+                {...accessibility.getListItemAccessibilityProps(
+                  `Task: ${task.title}`,
+                  `Priority: ${task.priority}, ${task.description ? `Description: ${task.description}` : 'No description'}`
+                )}
               >
                 <Card.Content>
                   <View style={styles.taskHeader}>
@@ -306,7 +317,7 @@ const HomeScreen: React.FC = () => {
                       <Text 
                         variant="titleMedium" 
                         style={[
-                          styles.taskTitle, 
+                          styles.taskTitle,
                           { color: theme.colors.onSurface },
                           task.completed && styles.completedTask
                         ]}
@@ -355,6 +366,10 @@ const HomeScreen: React.FC = () => {
                           handleDeleteTask(task);
                         }}
                         textColor={theme.colors.error}
+                        {...accessibility.getButtonAccessibilityProps(
+                          `Delete task: ${task.title}`,
+                          'Double tap to delete this task'
+                        )}
                       >
                         Delete
                       </Button>
@@ -363,6 +378,23 @@ const HomeScreen: React.FC = () => {
                 </Card.Content>
               </Card>
             ))}
+          </View>
+        ) : (
+          <View style={styles.emptyContainer}>
+            <MaterialCommunityIcons
+              name="clipboard-text-outline"
+              size={64}
+              color={theme.colors.onSurfaceVariant}
+            />
+            <Text variant="titleMedium" style={[styles.emptyTitle, { color: theme.colors.onSurface }]}>
+              {searchQuery.trim() ? 'No tasks found' : 'No tasks yet'}
+            </Text>
+            <Text variant="bodyMedium" style={[styles.emptySubtitle, { color: theme.colors.onSurfaceVariant }]}>
+              {searchQuery.trim() 
+                ? 'Try adjusting your search or create a new task'
+                : 'Create your first task to get started'
+              }
+            </Text>
           </View>
         )}
       </ScrollView>
@@ -373,7 +405,11 @@ const HomeScreen: React.FC = () => {
           onDismiss={hideDialog}
           contentContainerStyle={[styles.modal, { backgroundColor: theme.colors.surface }]}
         >
-          <Text variant="headlineSmall" style={[styles.modalTitle, { color: theme.colors.onSurface }]}>
+          <Text 
+            variant="headlineSmall" 
+            style={[styles.modalTitle, { color: theme.colors.onSurface }]}
+            {...accessibility.getHeaderAccessibilityProps('Create New Task', 2)}
+          >
             Create New Task
           </Text>
           
@@ -384,6 +420,7 @@ const HomeScreen: React.FC = () => {
             mode="outlined"
             style={styles.input}
             autoFocus
+            {...accessibility.getInputAccessibilityProps('Task title', 'Enter the title for your new task', true)}
           />
           
           <TextInput
@@ -394,6 +431,7 @@ const HomeScreen: React.FC = () => {
             multiline
             numberOfLines={3}
             style={styles.input}
+            {...accessibility.getInputAccessibilityProps('Task description', 'Enter an optional description for your task')}
           />
           
           <Text variant="bodyMedium" style={[styles.priorityLabel, { color: theme.colors.onSurface }]}>
@@ -412,36 +450,52 @@ const HomeScreen: React.FC = () => {
           />
           
           <View style={styles.modalActions}>
-            <Button mode="outlined" onPress={hideDialog} style={styles.modalButton}>
+            <Button 
+              mode="outlined" 
+              onPress={hideDialog} 
+              style={styles.modalButton}
+              {...accessibility.getButtonAccessibilityProps('Cancel', 'Cancel creating new task')}
+            >
               Cancel
             </Button>
             <Button 
               mode="contained" 
               onPress={handleCreateTask}
               loading={isCreating}
-              disabled={!newTaskTitle.trim() || isCreating}
-              style={styles.modalButton}
+              disabled={isCreating}
+              style={[styles.modalButton, { backgroundColor: theme.colors.primary }]}
+              {...accessibility.getButtonAccessibilityProps('Create task', 'Create the new task')}
             >
-              Create
+              Create Task
             </Button>
           </View>
         </Modal>
       </Portal>
 
+      {/* Delete Confirmation Modal */}
       <Portal>
         <Modal
           visible={deleteDialogVisible}
           onDismiss={handleCancelDelete}
           contentContainerStyle={[styles.modal, { backgroundColor: theme.colors.surface }]}
         >
-          <Text variant="headlineSmall" style={[styles.modalTitle, { color: theme.colors.onSurface }]}>
+          <Text 
+            variant="headlineSmall" 
+            style={[styles.modalTitle, { color: theme.colors.onSurface }]}
+            {...accessibility.getHeaderAccessibilityProps('Confirm Deletion', 2)}
+          >
             Confirm Deletion
           </Text>
           <Text variant="bodyMedium" style={[styles.modalText, { color: theme.colors.onSurfaceVariant }]}>
             Are you sure you want to delete "{taskToDelete?.title}"? This action cannot be undone.
           </Text>
           <View style={styles.modalActions}>
-            <Button mode="outlined" onPress={handleCancelDelete} style={styles.modalButton}>
+            <Button 
+              mode="outlined" 
+              onPress={handleCancelDelete} 
+              style={styles.modalButton}
+              {...accessibility.getButtonAccessibilityProps('Cancel', 'Cancel deleting the task')}
+            >
               Cancel
             </Button>
             <Button 
@@ -450,6 +504,7 @@ const HomeScreen: React.FC = () => {
               loading={isDeleting}
               disabled={isDeleting}
               style={styles.modalButton}
+              {...accessibility.getButtonAccessibilityProps('Delete', 'Confirm deletion of the task')}
             >
               Delete
             </Button>
@@ -461,6 +516,7 @@ const HomeScreen: React.FC = () => {
         icon="plus"
         style={[styles.fab, { backgroundColor: theme.colors.primary }]}
         onPress={showDialog}
+        {...accessibility.getButtonAccessibilityProps('Add new task', 'Create a new task')}
       />
     </SafeAreaView>
   );
@@ -604,6 +660,12 @@ const styles = StyleSheet.create({
   },
   modalButton: {
     flex: 1,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 60,
   },
 });
 
