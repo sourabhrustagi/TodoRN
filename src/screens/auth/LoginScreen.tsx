@@ -202,26 +202,10 @@ const LoginScreen: React.FC = () => {
                 {isLoading ? 'Sending...' : 'Send OTP'}
               </Button>
 
-              {/* Demo Info */}
-              <View style={styles.demoContainer}>
-                <Text 
-                  variant="bodySmall" 
-                  style={[styles.demoText, { color: theme.colors.onSurfaceVariant }]}
-                >
-                  Demo: Use any valid phone number, OTP is 123456
-                </Text>
-              </View>
+
             </View>
 
-            {/* Help Section */}
-            <View style={styles.helpContainer}>
-              <Text 
-                variant="bodySmall" 
-                style={[styles.helpText, { color: theme.colors.onSurfaceVariant }]}
-              >
-                Demo: Use any valid phone number, OTP is 123456
-              </Text>
-            </View>
+
           </Surface>
         </Animated.View>
       </KeyboardAvoidingView>
@@ -310,25 +294,7 @@ const styles = StyleSheet.create({
   buttonContent: {
     height: 48,
   },
-  demoContainer: {
-    alignItems: 'center',
-    padding: 16,
-    backgroundColor: 'rgba(0,0,0,0.05)',
-    borderRadius: 8,
-  },
-  demoText: {
-    textAlign: 'center',
-    fontStyle: 'italic',
-  },
-  helpContainer: {
-    alignItems: 'center',
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(0,0,0,0.1)',
-  },
-  helpText: {
-    textAlign: 'center',
-  },
+
   snackbar: {
     margin: 16,
     borderRadius: 8,

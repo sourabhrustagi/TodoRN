@@ -35,6 +35,10 @@ const TaskDetailScreen: React.FC<TaskDetailScreenProps> = ({ route }) => {
   const [editCompleted, setEditCompleted] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
+  // Delete dialog state
+  const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
   useEffect(() => {
     if (taskId) {
       const foundTask = tasks.find(t => t.id === taskId);
@@ -61,11 +65,13 @@ const TaskDetailScreen: React.FC<TaskDetailScreenProps> = ({ route }) => {
     setIsSaving(true);
     try {
       await dispatch(updateTask({
-        id: task.id,
-        title: editTitle.trim(),
-        description: editDescription.trim(),
-        priority: editPriority,
-        completed: editCompleted,
+        taskId: task.id,
+        updates: {
+          title: editTitle.trim(),
+          description: editDescription.trim(),
+          priority: editPriority,
+          completed: editCompleted,
+        }
       })).unwrap();
 
       setEditVisible(false);
@@ -83,31 +89,36 @@ const TaskDetailScreen: React.FC<TaskDetailScreenProps> = ({ route }) => {
 
   const handleDelete = () => {
     if (!task) return;
+    console.log('TaskDetailScreen: handleDelete called for task:', task.id, task.title);
+    setDeleteDialogVisible(true);
+  };
 
-    Alert.alert(
-      'Delete Task',
-      `Are you sure you want to delete "${task.title}"?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              console.log('TaskDetailScreen: Attempting to delete task:', task.id);
-              await dispatch(deleteTask(task.id)).unwrap();
-              console.log('TaskDetailScreen: Task deleted successfully, navigating back');
-              
-              // Navigate back to home screen
-              (navigation as any).navigate('MainTabs', { screen: 'Home' });
-            } catch (error) {
-              console.error('TaskDetailScreen: Error deleting task:', error);
-              Alert.alert('Error', 'Failed to delete task');
-            }
-          },
-        },
-      ]
-    );
+  const handleConfirmDelete = async () => {
+    if (!task) return;
+
+    console.log('TaskDetailScreen: User confirmed delete for task:', task.id);
+    console.log('TaskDetailScreen: Attempting to delete task:', task.id);
+    
+    setIsDeleting(true);
+    try {
+      await dispatch(deleteTask(task.id)).unwrap();
+      console.log('TaskDetailScreen: Task deleted successfully, navigating back');
+      
+      setDeleteDialogVisible(false);
+      
+      // Navigate back to home screen immediately after successful deletion
+      (navigation as any).navigate('MainTabs', { screen: 'Home' });
+    } catch (error) {
+      console.error('TaskDetailScreen: Error deleting task:', error);
+      Alert.alert('Error', 'Failed to delete task. Please try again.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleCancelDelete = () => {
+    console.log('TaskDetailScreen: Delete cancelled by user');
+    setDeleteDialogVisible(false);
   };
 
   const getPriorityColor = (priority: Priority) => {
@@ -297,6 +308,36 @@ const TaskDetailScreen: React.FC<TaskDetailScreenProps> = ({ route }) => {
           </View>
         </Modal>
       </Portal>
+
+      {/* Delete Confirmation Modal */}
+      <Portal>
+        <Modal
+          visible={deleteDialogVisible}
+          onDismiss={handleCancelDelete}
+          contentContainerStyle={[styles.modal, { backgroundColor: theme.colors.surface }]}
+        >
+          <Text variant="headlineSmall" style={[styles.modalTitle, { color: theme.colors.onSurface }]}>
+            Confirm Deletion
+          </Text>
+          <Text variant="bodyMedium" style={[styles.modalText, { color: theme.colors.onSurfaceVariant }]}>
+            Are you sure you want to delete "{task?.title}"? This action cannot be undone.
+          </Text>
+          <View style={styles.modalActions}>
+            <Button mode="outlined" onPress={handleCancelDelete} style={styles.modalButton}>
+              Cancel
+            </Button>
+            <Button 
+              mode="contained" 
+              onPress={handleConfirmDelete}
+              loading={isDeleting}
+              disabled={isDeleting}
+              style={styles.modalButton}
+            >
+              Delete
+            </Button>
+          </View>
+        </Modal>
+      </Portal>
     </SafeAreaView>
   );
 };
@@ -376,6 +417,10 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontWeight: 'bold',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  modalText: {
     marginBottom: 20,
     textAlign: 'center',
   },

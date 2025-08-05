@@ -199,13 +199,32 @@ class MockApiService {
     if (tasksJson) {
       try {
         const tasks = JSON.parse(tasksJson);
-        return tasks.map((task: any) => ({
-          ...task,
-          createdAt: new Date(task.createdAt),
-          updatedAt: new Date(task.updatedAt),
-          dueDate: task.dueDate ? new Date(task.dueDate) : null,
-          reminderTime: task.reminderTime ? new Date(task.reminderTime) : null,
-        }));
+        return tasks.map((task: any) => {
+          // Ensure all date fields are properly converted
+          const convertedTask = {
+            ...task,
+            createdAt: task.createdAt ? new Date(task.createdAt) : new Date(),
+            updatedAt: task.updatedAt ? new Date(task.updatedAt) : new Date(),
+            dueDate: task.dueDate ? new Date(task.dueDate) : null,
+            reminderTime: task.reminderTime ? new Date(task.reminderTime) : null,
+          };
+          
+          // Validate that dates are valid
+          if (isNaN(convertedTask.createdAt.getTime())) {
+            convertedTask.createdAt = new Date();
+          }
+          if (isNaN(convertedTask.updatedAt.getTime())) {
+            convertedTask.updatedAt = new Date();
+          }
+          if (convertedTask.dueDate && isNaN(convertedTask.dueDate.getTime())) {
+            convertedTask.dueDate = null;
+          }
+          if (convertedTask.reminderTime && isNaN(convertedTask.reminderTime.getTime())) {
+            convertedTask.reminderTime = null;
+          }
+          
+          return convertedTask;
+        });
       } catch (error) {
         console.error('MockApiService: Error parsing tasks from storage:', error);
         return [];
@@ -246,14 +265,29 @@ class MockApiService {
 
       console.log('MockApiService: New task created:', newTask);
       
-      tasks.push(newTask);
-      await AsyncStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(tasks));
+      // Create a serializable version for storage
+      const serializableTask = {
+        ...newTask,
+        createdAt: newTask.createdAt.toISOString(),
+        updatedAt: newTask.updatedAt.toISOString(),
+        dueDate: newTask.dueDate ? newTask.dueDate.toISOString() : null,
+        reminderTime: newTask.reminderTime ? newTask.reminderTime.toISOString() : null,
+      };
       
-      console.log('MockApiService: Task saved to storage, total tasks:', tasks.length);
+      // Get existing tasks and add the new one
+      const existingTasksJson = await AsyncStorage.getItem(STORAGE_KEYS.TASKS);
+      const existingTasks = existingTasksJson ? JSON.parse(existingTasksJson) : [];
+      
+      // Add the new task to the beginning of the array
+      existingTasks.unshift(serializableTask);
+      
+      await AsyncStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(existingTasks));
+      
+      console.log('MockApiService: Task saved to storage, total tasks:', existingTasks.length);
       
       return {
         success: true,
-        task: newTask,
+        task: newTask, // Return the original task with Date objects
         message: 'Task created successfully',
       };
     } catch (error) {

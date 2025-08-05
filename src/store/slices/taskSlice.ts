@@ -68,16 +68,22 @@ export const updateTask = createAsyncThunk(
 export const deleteTask = createAsyncThunk(
   'task/deleteTask',
   async (taskId: string, { rejectWithValue }) => {
+    console.log('TaskSlice: deleteTask async thunk called for taskId:', taskId);
     try {
       const api = MockApiService.getInstance();
       const result = await api.deleteTask(taskId);
       
+      console.log('TaskSlice: deleteTask API result:', result);
+      
       if (result.success) {
+        console.log('TaskSlice: deleteTask successful, returning taskId:', taskId);
         return taskId;
       } else {
+        console.log('TaskSlice: deleteTask failed:', result.message);
         return rejectWithValue(result.message || 'Failed to delete task');
       }
     } catch (error) {
+      console.error('TaskSlice: deleteTask error:', error);
       return rejectWithValue('Failed to delete task');
     }
   }
@@ -149,14 +155,19 @@ const taskSlice = createSlice({
     // deleteTask
     builder
       .addCase(deleteTask.pending, (state) => {
+        console.log('TaskSlice: deleteTask pending');
         state.isLoading = true;
         state.error = null;
       })
       .addCase(deleteTask.fulfilled, (state, action) => {
+        console.log('TaskSlice: deleteTask fulfilled, taskId:', action.payload);
+        console.log('TaskSlice: Current tasks count before delete:', state.tasks.length);
         state.isLoading = false;
         state.tasks = state.tasks.filter(task => task.id !== action.payload);
+        console.log('TaskSlice: Tasks count after delete:', state.tasks.length);
       })
       .addCase(deleteTask.rejected, (state, action) => {
+        console.log('TaskSlice: deleteTask rejected:', action.payload);
         state.isLoading = false;
         state.error = action.payload as string;
       });

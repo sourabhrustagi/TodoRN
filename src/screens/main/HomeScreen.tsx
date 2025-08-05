@@ -9,7 +9,7 @@ import { Task, Priority } from '../../types';
 import { lightTheme, darkTheme } from '../../constants/theme';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
-type SortOption = 'createdAt' | 'priority' | 'title' | 'dueDate';
+type SortOption = 'low' | 'medium' | 'high';
 
 const HomeScreen: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -20,7 +20,7 @@ const HomeScreen: React.FC = () => {
   
   // Search and sort state
   const [searchQuery, setSearchQuery] = useState('');
-  const [sortBy, setSortBy] = useState<SortOption>('createdAt');
+  const [sortBy, setSortBy] = useState<SortOption>('medium');
   const [sortMenuVisible, setSortMenuVisible] = useState(false);
   
   // Dialog state
@@ -30,38 +30,42 @@ const HomeScreen: React.FC = () => {
   const [newTaskDescription, setNewTaskDescription] = useState('');
   const [isCreating, setIsCreating] = useState(false);
 
+  // Delete dialog state
+  const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
+  const [taskToDelete, setTaskToDelete] = useState<Task | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
   // Filtered and sorted tasks
   const filteredAndSortedTasks = useMemo(() => {
-    let filteredTasks = tasks;
-    
-    // Filter by search query
-    if (searchQuery.trim()) {
-      filteredTasks = filteredTasks.filter(task => 
-        task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        task.description.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-    }
-    
-    // Sort tasks
-    filteredTasks.sort((a, b) => {
-      switch (sortBy) {
-        case 'priority':
-          const priorityOrder = { high: 3, medium: 2, low: 1 };
-          return priorityOrder[b.priority] - priorityOrder[a.priority];
-        case 'title':
-          return a.title.localeCompare(b.title);
-        case 'dueDate':
-          if (!a.dueDate && !b.dueDate) return 0;
-          if (!a.dueDate) return 1;
-          if (!b.dueDate) return -1;
-          return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
-        case 'createdAt':
-        default:
-          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    try {
+      let filteredTasks = tasks;
+      
+      // Filter by search query
+      if (searchQuery.trim()) {
+        filteredTasks = filteredTasks.filter(task => 
+          task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          task.description.toLowerCase().includes(searchQuery.toLowerCase())
+        );
       }
-    });
-    
-    return filteredTasks;
+      
+      // Filter by priority level
+      filteredTasks = filteredTasks.filter(task => task.priority === sortBy);
+      
+      // Sort by creation date (newest first)
+      filteredTasks.sort((a, b) => {
+        try {
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        } catch (error) {
+          console.error('HomeScreen: Error sorting tasks:', error);
+          return 0;
+        }
+      });
+      
+      return filteredTasks;
+    } catch (error) {
+      console.error('HomeScreen: Error filtering/sorting tasks:', error);
+      return tasks; // Return original tasks if there's an error
+    }
   }, [tasks, searchQuery, sortBy]);
 
   const showDialog = () => setVisible(true);
@@ -90,13 +94,27 @@ const HomeScreen: React.FC = () => {
 
     setIsCreating(true);
     try {
-      const result = await dispatch(createTask({
+      // Validate task data before creating
+      const taskData = {
         title: newTaskTitle.trim(),
         description: newTaskDescription.trim(),
         priority: newTaskPriority,
         dueDate: undefined,
         categoryId: '',
-      })).unwrap();
+      };
+
+      // Additional validation
+      if (taskData.title.length > 100) {
+        Alert.alert('Error', 'Task title is too long (max 100 characters)');
+        return;
+      }
+
+      if (taskData.description.length > 500) {
+        Alert.alert('Error', 'Task description is too long (max 500 characters)');
+        return;
+      }
+
+      const result = await dispatch(createTask(taskData)).unwrap();
 
       console.log('HomeScreen: Task created successfully:', result);
       console.log('HomeScreen: New tasks count:', tasks.length + 1);
@@ -115,27 +133,37 @@ const HomeScreen: React.FC = () => {
   };
 
   const handleDeleteTask = async (task: Task) => {
-    Alert.alert(
-      'Delete Task',
-      `Are you sure you want to delete "${task.title}"?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              console.log('HomeScreen: Deleting task:', task.id);
-              await dispatch(deleteTask(task.id)).unwrap();
-              console.log('HomeScreen: Task deleted successfully');
-            } catch (error) {
-              console.error('HomeScreen: Error deleting task:', error);
-              Alert.alert('Error', 'Failed to delete task');
-            }
-          },
-        },
-      ]
-    );
+    console.log('HomeScreen: handleDeleteTask called for task:', task.id, task.title);
+    setTaskToDelete(task);
+    setDeleteDialogVisible(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!taskToDelete) return;
+
+    console.log('HomeScreen: User confirmed delete for task:', taskToDelete.id);
+    console.log('HomeScreen: Current tasks count before delete:', tasks.length);
+    
+    setIsDeleting(true);
+    try {
+      const result = await dispatch(deleteTask(taskToDelete.id)).unwrap();
+      console.log('HomeScreen: Delete dispatch result:', result);
+      console.log('HomeScreen: Task deleted successfully');
+      
+      setDeleteDialogVisible(false);
+      setTaskToDelete(null);
+    } catch (error) {
+      console.error('HomeScreen: Error deleting task:', error);
+      Alert.alert('Error', 'Failed to delete task. Please try again.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleCancelDelete = () => {
+    console.log('HomeScreen: Delete cancelled by user');
+    setDeleteDialogVisible(false);
+    setTaskToDelete(null);
   };
 
   const getPriorityColor = (priority: Priority) => {
@@ -158,19 +186,19 @@ const HomeScreen: React.FC = () => {
 
   const getSortIcon = () => {
     switch (sortBy) {
-      case 'priority': return 'flag';
-      case 'title': return 'sort-alphabetical-ascending';
-      case 'dueDate': return 'calendar';
-      default: return 'clock-outline';
+      case 'low': return 'flag-variant-outline';
+      case 'medium': return 'flag-outline';
+      case 'high': return 'flag';
+      default: return 'flag-outline';
     }
   };
 
   const getSortLabel = () => {
     switch (sortBy) {
-      case 'priority': return 'Priority';
-      case 'title': return 'Name';
-      case 'dueDate': return 'Due Date';
-      default: return 'Created';
+      case 'low': return 'Low';
+      case 'medium': return 'Medium';
+      case 'high': return 'High';
+      default: return 'Medium';
     }
   };
 
@@ -203,35 +231,27 @@ const HomeScreen: React.FC = () => {
           >
             <Menu.Item
               onPress={() => {
-                setSortBy('createdAt');
+                setSortBy('medium');
                 setSortMenuVisible(false);
               }}
-              title="Sort by Created"
-              leadingIcon="clock-outline"
+              title="Sort by Medium"
+              leadingIcon="flag-outline"
             />
             <Menu.Item
               onPress={() => {
-                setSortBy('priority');
+                setSortBy('high');
                 setSortMenuVisible(false);
               }}
-              title="Sort by Priority"
+              title="Sort by High"
               leadingIcon="flag"
             />
             <Menu.Item
               onPress={() => {
-                setSortBy('title');
+                setSortBy('low');
                 setSortMenuVisible(false);
               }}
-              title="Sort by Name"
-              leadingIcon="sort-alphabetical-ascending"
-            />
-            <Menu.Item
-              onPress={() => {
-                setSortBy('dueDate');
-                setSortMenuVisible(false);
-              }}
-              title="Sort by Due Date"
-              leadingIcon="calendar"
+              title="Sort by Low"
+              leadingIcon="flag-variant-outline"
             />
           </Menu>
         </View>
@@ -252,7 +272,7 @@ const HomeScreen: React.FC = () => {
         {/* Sort indicator */}
         <View style={styles.sortIndicator}>
           <Text variant="bodySmall" style={[styles.sortText, { color: theme.colors.onSurfaceVariant }]}>
-            Sorted by: {getSortLabel()}
+            Showing: {getSortLabel()} Priority Tasks
           </Text>
         </View>
       </View>
@@ -330,7 +350,10 @@ const HomeScreen: React.FC = () => {
                       <Button
                         mode="text"
                         compact
-                        onPress={() => handleDeleteTask(task)}
+                        onPress={() => {
+                          console.log('HomeScreen: Delete button pressed for task:', task.id, task.title);
+                          handleDeleteTask(task);
+                        }}
                         textColor={theme.colors.error}
                       >
                         Delete
@@ -400,6 +423,35 @@ const HomeScreen: React.FC = () => {
               style={styles.modalButton}
             >
               Create
+            </Button>
+          </View>
+        </Modal>
+      </Portal>
+
+      <Portal>
+        <Modal
+          visible={deleteDialogVisible}
+          onDismiss={handleCancelDelete}
+          contentContainerStyle={[styles.modal, { backgroundColor: theme.colors.surface }]}
+        >
+          <Text variant="headlineSmall" style={[styles.modalTitle, { color: theme.colors.onSurface }]}>
+            Confirm Deletion
+          </Text>
+          <Text variant="bodyMedium" style={[styles.modalText, { color: theme.colors.onSurfaceVariant }]}>
+            Are you sure you want to delete "{taskToDelete?.title}"? This action cannot be undone.
+          </Text>
+          <View style={styles.modalActions}>
+            <Button mode="outlined" onPress={handleCancelDelete} style={styles.modalButton}>
+              Cancel
+            </Button>
+            <Button 
+              mode="contained" 
+              onPress={handleConfirmDelete}
+              loading={isDeleting}
+              disabled={isDeleting}
+              style={styles.modalButton}
+            >
+              Delete
             </Button>
           </View>
         </Modal>
@@ -528,6 +580,10 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontWeight: 'bold',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  modalText: {
     marginBottom: 20,
     textAlign: 'center',
   },

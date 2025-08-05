@@ -25,32 +25,35 @@ const SettingsScreen: React.FC = () => {
   const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
   const [showSuccessSnackbar, setShowSuccessSnackbar] = useState(false);
 
+  // Logout dialog state
+  const [logoutDialogVisible, setLogoutDialogVisible] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
   const handleLogout = () => {
-    Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Logout',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              console.log('SettingsScreen: Starting logout process...');
-              console.log('SettingsScreen: Current auth state before logout:', { isAuthenticated, user });
-              
-              const result = await dispatch(logout()).unwrap();
-              console.log('SettingsScreen: Logout dispatch result:', result);
-              
-              console.log('SettingsScreen: Logout successful');
-            } catch (error) {
-              console.error('SettingsScreen: Logout error:', error);
-              Alert.alert('Error', 'Failed to logout');
-            }
-          },
-        },
-      ]
-    );
+    setLogoutDialogVisible(true);
+  };
+
+  const handleConfirmLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      console.log('SettingsScreen: Starting logout process...');
+      console.log('SettingsScreen: Current auth state before logout:', { isAuthenticated, user });
+      
+      const result = await dispatch(logout()).unwrap();
+      console.log('SettingsScreen: Logout dispatch result:', result);
+      
+      console.log('SettingsScreen: Logout successful');
+      setLogoutDialogVisible(false);
+    } catch (error) {
+      console.error('SettingsScreen: Logout error:', error);
+      Alert.alert('Error', 'Failed to logout');
+    } finally {
+      setIsLoggingOut(false);
+    }
+  };
+
+  const handleCancelLogout = () => {
+    setLogoutDialogVisible(false);
   };
 
   const handleFeedback = () => {
@@ -281,6 +284,45 @@ const SettingsScreen: React.FC = () => {
         </Modal>
       </Portal>
 
+      {/* Logout Confirmation Dialog */}
+      <Portal>
+        <Modal
+          visible={logoutDialogVisible}
+          onDismiss={handleCancelLogout}
+          contentContainerStyle={[
+            styles.modal,
+            { backgroundColor: theme.colors.surface }
+          ]}
+        >
+          <Text variant="headlineSmall" style={[styles.modalTitle, { color: theme.colors.onSurface }]}>
+            Logout
+          </Text>
+          <Text variant="bodyMedium" style={[styles.modalText, { color: theme.colors.onSurfaceVariant }]}>
+            Are you sure you want to logout? You will need to login again to access your tasks.
+          </Text>
+          <View style={styles.modalActions}>
+            <Button 
+              mode="outlined" 
+              onPress={handleCancelLogout} 
+              style={styles.modalButton}
+              disabled={isLoggingOut}
+            >
+              Cancel
+            </Button>
+            <Button 
+              mode="contained" 
+              onPress={handleConfirmLogout}
+              loading={isLoggingOut}
+              disabled={isLoggingOut}
+              style={[styles.modalButton, { backgroundColor: theme.colors.error }]}
+              buttonColor={theme.colors.error}
+            >
+              Logout
+            </Button>
+          </View>
+        </Modal>
+      </Portal>
+
       {/* Success Snackbar */}
       <Snackbar
         visible={showSuccessSnackbar}
@@ -339,6 +381,10 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontWeight: 'bold',
     marginBottom: 20,
+    textAlign: 'center',
+  },
+  modalText: {
+    marginBottom: 24,
     textAlign: 'center',
   },
   ratingLabel: {
