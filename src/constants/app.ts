@@ -1,13 +1,47 @@
+import { getConfig } from '../config/environments';
+
+const config = getConfig();
+
 // App constants
 
 export const APP_CONSTANTS = {
   // App info
-  APP_NAME: 'TodoRN',
-  APP_VERSION: '1.0.0',
+  APP_NAME: config.app.name,
+  APP_VERSION: config.app.version,
+  
+  // API Configuration
+  API: {
+    BASE_URL: config.api.baseUrl,
+    MOCK_MODE: config.api.mockMode,
+    TIMEOUT: config.api.timeout,
+    RETRY_ATTEMPTS: config.api.retryAttempts,
+    RETRY_DELAY: config.api.retryDelay,
+  },
+  
+  // Environment
+  ENVIRONMENT: {
+    NAME: config.name,
+    DEBUG: config.app.debug,
+    LOG_LEVEL: config.app.logLevel,
+  },
+  
+  // Features
+  FEATURES: {
+    ANALYTICS: config.features.analytics,
+    CRASH_REPORTING: config.features.crashReporting,
+    PUSH_NOTIFICATIONS: config.features.pushNotifications,
+    OFFLINE_SUPPORT: config.features.offlineSupport,
+  },
+  
+  // Storage
+  STORAGE: {
+    ENCRYPTION: config.storage.encryption,
+    BACKUP_ENABLED: config.storage.backupEnabled,
+  },
   
   // API
-  API_BASE_URL: 'https://api.todorn.com',
-  API_TIMEOUT: 10000,
+  API_BASE_URL: config.api.baseUrl,
+  API_TIMEOUT: config.api.timeout,
   
   // Storage keys
   STORAGE_KEYS: {

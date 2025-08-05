@@ -94,15 +94,158 @@ export interface PaginatedResponse<T> {
   hasPrev: boolean;
 }
 
-export interface LoginRequest {
-  phone: string;
+// New API Response Types
+export interface LoginResponse {
+  success: boolean;
+  data: {
+    token: string;
+    refreshToken: string;
+    expiresIn: number;
+    user: {
+      id: string;
+      phoneNumber: string;
+      name: string;
+    };
+  };
+}
+
+export interface SendOtpResponse {
+  success: boolean;
+  data: {
+    message: string;
+    expiresIn: number;
+  };
+}
+
+export interface LogoutResponse {
+  success: boolean;
+  message: string;
+}
+
+export interface TaskResponse {
+  id: string;
+  title: string;
+  description: string;
+  priority: 'high' | 'medium' | 'low';
+  category: {
+    id: string;
+    name: string;
+    color: string;
+  };
+  dueDate: string;
+  completed: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TasksListResponse {
+  success: boolean;
+  data: {
+    tasks: TaskResponse[];
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      totalPages: number;
+    };
+  };
+}
+
+export interface CategoryResponse {
+  id: string;
+  name: string;
+  color: string;
+  createdAt: string;
+}
+
+export interface CategoriesListResponse {
+  success: boolean;
+  data: CategoryResponse[];
+}
+
+export interface BulkOperationRequest {
+  operation: 'complete' | 'delete' | 'move' | 'changePriority' | 'changeCategory';
+  taskIds: string[];
+  data?: any;
+}
+
+export interface BulkOperationResponse {
+  success: boolean;
+  data: {
+    updatedCount: number;
+    message: string;
+  };
+}
+
+export interface SearchTasksResponse {
+  success: boolean;
+  data: {
+    tasks: TaskResponse[];
+    total: number;
+  };
+}
+
+export interface AnalyticsResponse {
+  success: boolean;
+  data: {
+    total: number;
+    completed: number;
+    pending: number;
+    overdue: number;
+    byPriority: {
+      high: number;
+      medium: number;
+      low: number;
+    };
+    byCategory: Array<{
+      category: string;
+      count: number;
+    }>;
+    completionRate: number;
+  };
+}
+
+export interface FeedbackResponse {
+  id: string;
+  rating: number;
+  comment: string;
+  category: string;
+  createdAt: string;
+}
+
+export interface FeedbackListResponse {
+  success: boolean;
+  data: FeedbackResponse[];
+}
+
+// API Request Types
+export interface SendOtpRequest {
+  phoneNumber: string;
+}
+
+export interface VerifyOtpRequest {
+  phoneNumber: string;
   otp: string;
 }
 
-export interface SendOtpRequest {
-  phone: string;
+export interface CreateTaskApiRequest {
+  title: string;
+  description: string;
+  priority: 'high' | 'medium' | 'low';
+  categoryId: string;
+  dueDate?: string;
 }
 
+export interface UpdateTaskApiRequest {
+  title?: string;
+  description?: string;
+  priority?: 'high' | 'medium' | 'low';
+  categoryId?: string;
+  dueDate?: string;
+  completed?: boolean;
+}
+
+// Legacy types for backward compatibility
 export interface CreateTaskRequest {
   title: string;
   description: string;
@@ -120,23 +263,46 @@ export interface UpdateTaskRequest {
   categoryId?: string;
 }
 
-export interface CreateCategoryRequest {
+export interface CreateCategoryApiRequest {
   name: string;
   color: string;
-  icon: string;
 }
 
-export interface UpdateCategoryRequest {
-  id: string;
+export interface UpdateCategoryApiRequest {
   name?: string;
   color?: string;
-  icon?: string;
 }
 
-export interface FeedbackRequest {
+export interface FeedbackApiRequest {
   rating: number;
   comment: string;
   category: string;
+}
+
+export interface SearchTasksRequest {
+  q: string;
+  fields?: 'title' | 'description' | 'all';
+  fuzzy?: boolean;
+}
+
+export interface GetTasksQueryParams {
+  page?: number;
+  limit?: number;
+  priority?: 'high' | 'medium' | 'low';
+  completed?: boolean;
+  search?: string;
+  sortBy?: 'title' | 'priority' | 'dueDate' | 'createdAt';
+  sortOrder?: 'asc' | 'desc';
+}
+
+// Error Response Types
+export interface ApiError {
+  success: false;
+  error: {
+    code: string;
+    message: string;
+    details?: Record<string, any>;
+  };
 }
 
 export type Priority = 'high' | 'medium' | 'low';

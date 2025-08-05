@@ -8,9 +8,9 @@ import { createTask, deleteTask } from '../../store/slices/taskSlice';
 import { Task, Priority } from '../../types';
 import { lightTheme, darkTheme } from '../../constants/theme';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { validateTaskTitle, validateTaskDescription } from '../../utils/validation';
-import { debounce, measurePerformance } from '../../utils/performance';
-import { logTask, trackUserAction } from '../../utils/logger';
+import { fieldValidators } from '../../utils/validation';
+import performanceMonitor from '../../utils/performance';
+import logger from '../../utils/logger';
 import { useAccessibility } from '../../hooks/useAccessibility';
 import { APP_CONSTANTS } from '../../constants/app';
 
@@ -43,9 +43,9 @@ const HomeScreen: React.FC = () => {
 
   // Debounced search
   const debouncedSearch = useCallback(
-    debounce((query: string) => {
-      trackUserAction('search_tasks', { query });
-    }, APP_CONSTANTS.DEBOUNCE.SEARCH),
+    (query: string) => {
+      logger.info('Search tasks', { query });
+    },
     []
   );
 
@@ -84,7 +84,7 @@ const HomeScreen: React.FC = () => {
 
   const showDialog = useCallback(() => {
     setVisible(true);
-    trackUserAction('open_create_task_dialog');
+    logger.info('Open create task dialog');
   }, []);
 
   const hideDialog = useCallback(() => {
@@ -96,16 +96,16 @@ const HomeScreen: React.FC = () => {
 
   const handleCreateTask = useCallback(async () => {
     // Validate task data
-    const titleValidation = validateTaskTitle(newTaskTitle);
-    const descriptionValidation = validateTaskDescription(newTaskDescription);
+    const titleErrors = fieldValidators.taskTitle(newTaskTitle);
+    const descriptionErrors = fieldValidators.taskDescription(newTaskDescription);
     
-    if (!titleValidation.isValid) {
-      Alert.alert('Error', titleValidation.message);
+    if (titleErrors.length > 0) {
+      Alert.alert('Error', titleErrors[0]);
       return;
     }
     
-    if (!descriptionValidation.isValid) {
-      Alert.alert('Error', descriptionValidation.message);
+    if (descriptionErrors.length > 0) {
+      Alert.alert('Error', descriptionErrors[0]);
       return;
     }
 
@@ -121,13 +121,12 @@ const HomeScreen: React.FC = () => {
         categoryId: '',
       };
 
-      const result = await measurePerformance(
-        () => dispatch(createTask(taskData)).unwrap(),
-        'create_task'
+      const result = await performanceMonitor.measureAsync(
+        'create_task',
+        () => dispatch(createTask(taskData)).unwrap()
       );
 
-      logTask('created', result.id, { title: result.title, priority: result.priority });
-      trackUserAction('task_created', { taskId: result.id, priority: result.priority });
+      logger.info('Task created', { taskId: result.id, title: result.title, priority: result.priority });
       
       hideDialog();
     } catch (error) {
@@ -139,12 +138,12 @@ const HomeScreen: React.FC = () => {
   }, [newTaskTitle, newTaskDescription, newTaskPriority, dispatch, hideDialog]);
 
   const handleTaskPress = useCallback((task: Task) => {
-    trackUserAction('task_pressed', { taskId: task.id, title: task.title });
+    logger.info('Task pressed', { taskId: task.id, title: task.title });
     (navigation as any).navigate('TaskDetail', { taskId: task.id });
   }, [navigation]);
 
   const handleDeleteTask = useCallback((task: Task) => {
-    logTask('delete_requested', task.id, { title: task.title });
+    logger.info('Delete task requested', { taskId: task.id, title: task.title });
     setTaskToDelete(task);
     setDeleteDialogVisible(true);
   }, []);
@@ -156,13 +155,12 @@ const HomeScreen: React.FC = () => {
     
     setIsDeleting(true);
     try {
-      const result = await measurePerformance(
-        () => dispatch(deleteTask(taskToDelete.id)).unwrap(),
-        'delete_task'
+      const result = await performanceMonitor.measureAsync(
+        'delete_task',
+        () => dispatch(deleteTask(taskToDelete.id)).unwrap()
       );
       
-      logTask('deleted', taskToDelete.id, { title: taskToDelete.title });
-      trackUserAction('task_deleted', { taskId: taskToDelete.id, title: taskToDelete.title });
+      logger.info('Task deleted', { taskId: taskToDelete.id, title: taskToDelete.title });
       
       setDeleteDialogVisible(false);
       setTaskToDelete(null);
@@ -233,7 +231,7 @@ const HomeScreen: React.FC = () => {
       <View style={styles.header}>
         <View style={styles.headerTop}>
           <Text variant="headlineMedium" style={[styles.title, { color: theme.colors.onSurface }]}>
-            Welcome back, {/* authState.user?.name || 'User' */}!
+            Welcome back, User!
           </Text>
           <Menu
             visible={sortMenuVisible}

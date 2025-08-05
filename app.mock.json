@@ -1,0 +1,36 @@
+{
+  "expo": {
+    "name": "TodoRN (Mock)",
+    "slug": "TodoRN-mock",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.todorn.app.mock"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#6750A4"
+      },
+      "package": "com.todorn.app.mock",
+      "permissions": [
+        "INTERNET",
+        "ACCESS_NETWORK_STATE"
+      ]
+    },
+    "web": {},
+    "extra": {
+      "eas": {
+        "projectId": "your-project-id"
+      },
+      "environment": "mock"
+    },
+    "plugins": [
+      "expo-constants"
+    ]
+  }
+} 

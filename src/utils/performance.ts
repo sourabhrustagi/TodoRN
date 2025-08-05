@@ -1,196 +1,158 @@
-// Performance utilities for React Native
+import { APP_CONSTANTS } from '../constants/app';
+import logger from './logger';
 
-/**
- * Memoization utility for expensive computations
- */
-export function memoize<T extends (...args: any[]) => any>(
-  fn: T,
-  getKey?: (...args: Parameters<T>) => string
-): T {
-  const cache = new Map<string, ReturnType<T>>();
-  
-  return ((...args: Parameters<T>) => {
-    const key = getKey ? getKey(...args) : JSON.stringify(args);
-    
-    if (cache.has(key)) {
-      return cache.get(key);
-    }
-    
-    const result = fn(...args);
-    cache.set(key, result);
-    return result;
-  }) as T;
+interface PerformanceMetric {
+  name: string;
+  startTime: number;
+  endTime?: number;
+  duration?: number;
+  metadata?: Record<string, any>;
 }
 
-/**
- * Debounce utility for frequent events
- */
-export function debounce<T extends (...args: any[]) => any>(
-  func: T,
-  wait: number
-): (...args: Parameters<T>) => void {
-  let timeout: NodeJS.Timeout;
-  
-  return (...args: Parameters<T>) => {
-    clearTimeout(timeout);
-    timeout = setTimeout(() => func(...args), wait);
-  };
-}
+class PerformanceMonitor {
+  private metrics: Map<string, PerformanceMetric> = new Map();
+  private enabled: boolean;
 
-/**
- * Throttle utility for rate limiting
- */
-export function throttle<T extends (...args: any[]) => any>(
-  func: T,
-  limit: number
-): (...args: Parameters<T>) => void {
-  let inThrottle: boolean;
-  
-  return (...args: Parameters<T>) => {
-    if (!inThrottle) {
-      func(...args);
-      inThrottle = true;
-      setTimeout(() => (inThrottle = false), limit);
-    }
-  };
-}
-
-/**
- * Performance monitoring utility
- */
-export class PerformanceMonitor {
-  private static instance: PerformanceMonitor;
-  private metrics: Map<string, number[]> = new Map();
-  
-  static getInstance(): PerformanceMonitor {
-    if (!PerformanceMonitor.instance) {
-      PerformanceMonitor.instance = new PerformanceMonitor();
-    }
-    return PerformanceMonitor.instance;
+  constructor() {
+    this.enabled = APP_CONSTANTS.ENVIRONMENT.DEBUG;
   }
-  
-  startTimer(operation: string): () => void {
-    const startTime = performance.now();
-    
-    return () => {
-      const duration = performance.now() - startTime;
-      this.recordMetric(operation, duration);
+
+  startTimer(name: string, metadata?: Record<string, any>): void {
+    if (!this.enabled) return;
+
+    const metric: PerformanceMetric = {
+      name,
+      startTime: performance.now(),
+      metadata,
+    };
+
+    this.metrics.set(name, metric);
+    logger.debug(`Performance timer started: ${name}`, metadata);
+  }
+
+  endTimer(name: string, additionalMetadata?: Record<string, any>): number | null {
+    if (!this.enabled) return null;
+
+    const metric = this.metrics.get(name);
+    if (!metric) {
+      logger.warn(`Performance timer not found: ${name}`);
+      return null;
+    }
+
+    metric.endTime = performance.now();
+    metric.duration = metric.endTime - metric.startTime;
+    metric.metadata = { ...metric.metadata, ...additionalMetadata };
+
+    logger.debug(`Performance timer ended: ${name}`, {
+      duration: metric.duration,
+      metadata: metric.metadata,
+    });
+
+    this.metrics.delete(name);
+    return metric.duration;
+  }
+
+  measureAsync<T>(
+    name: string,
+    asyncFn: () => Promise<T>,
+    metadata?: Record<string, any>
+  ): Promise<T> {
+    if (!this.enabled) {
+      return asyncFn();
+    }
+
+    this.startTimer(name, metadata);
+
+    return asyncFn()
+      .then((result) => {
+        this.endTimer(name, { success: true });
+        return result;
+      })
+      .catch((error) => {
+        this.endTimer(name, { success: false, error: error.message });
+        throw error;
+      });
+  }
+
+  measureSync<T>(
+    name: string,
+    syncFn: () => T,
+    metadata?: Record<string, any>
+  ): T {
+    if (!this.enabled) {
+      return syncFn();
+    }
+
+    this.startTimer(name, metadata);
+
+    try {
+      const result = syncFn();
+      this.endTimer(name, { success: true });
+      return result;
+    } catch (error) {
+      this.endTimer(name, { success: false, error: error.message });
+      throw error;
+    }
+  }
+
+  getMetrics(): PerformanceMetric[] {
+    return Array.from(this.metrics.values());
+  }
+
+  clearMetrics(): void {
+    this.metrics.clear();
+  }
+
+  generateReport(): Record<string, any> {
+    const metrics = Array.from(this.metrics.values());
+    const completedMetrics = metrics.filter(m => m.duration !== undefined);
+
+    if (completedMetrics.length === 0) {
+      return { message: 'No completed metrics found' };
+    }
+
+    const totalDuration = completedMetrics.reduce((sum, m) => sum + (m.duration || 0), 0);
+    const avgDuration = totalDuration / completedMetrics.length;
+    const minDuration = Math.min(...completedMetrics.map(m => m.duration || 0));
+    const maxDuration = Math.max(...completedMetrics.map(m => m.duration || 0));
+
+    return {
+      totalMetrics: completedMetrics.length,
+      totalDuration,
+      averageDuration: avgDuration,
+      minDuration,
+      maxDuration,
+      metrics: completedMetrics.map(m => ({
+        name: m.name,
+        duration: m.duration,
+        metadata: m.metadata,
+      })),
     };
   }
-  
-  private recordMetric(operation: string, duration: number): void {
-    if (!this.metrics.has(operation)) {
-      this.metrics.set(operation, []);
-    }
-    
-    const times = this.metrics.get(operation)!;
-    times.push(duration);
-    
-    // Keep only last 100 measurements
-    if (times.length > 100) {
-      times.shift();
-    }
-    
-    if (__DEV__) {
-      console.log(`Performance: ${operation} took ${duration.toFixed(2)}ms`);
-    }
-  }
-  
-  getAverageTime(operation: string): number {
-    const times = this.metrics.get(operation);
-    if (!times || times.length === 0) return 0;
-    
-    const sum = times.reduce((acc, time) => acc + time, 0);
-    return sum / times.length;
-  }
-  
-  getMetrics(): Record<string, { average: number; count: number }> {
-    const result: Record<string, { average: number; count: number }> = {};
-    
-    this.metrics.forEach((times, operation) => {
-      result[operation] = {
-        average: this.getAverageTime(operation),
-        count: times.length,
-      };
-    });
-    
-    return result;
-  }
 }
 
-/**
- * Batch updates utility for Redux
- */
-export function batchUpdate<T>(
-  updates: (() => void)[],
-  delay: number = 16
-): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      updates.forEach(update => update());
-      resolve();
-    }, delay);
-  });
-}
+// Singleton instance
+export const performanceMonitor = new PerformanceMonitor();
 
-/**
- * Create selector with memoization
- */
-export function createSelector<State, Result>(
-  selector: (state: State) => Result,
-  dependencies?: string[]
-): (state: State) => Result {
-  let lastState: State | null = null;
-  let lastResult: Result | null = null;
-  
-  return (state: State): Result => {
-    if (lastState === state) {
-      return lastResult!;
-    }
-    
-    lastState = state;
-    lastResult = selector(state);
-    return lastResult;
-  };
-}
+// Convenience functions
+export const startTimer = (name: string, metadata?: Record<string, any>) => 
+  performanceMonitor.startTimer(name, metadata);
 
-/**
- * Measure performance of async operations
- */
-export async function measurePerformance<T>(
-  operation: () => Promise<T>,
-  operationName: string
-): Promise<T> {
-  const monitor = PerformanceMonitor.getInstance();
-  const stopTimer = monitor.startTimer(operationName);
-  
-  try {
-    const result = await operation();
-    return result;
-  } finally {
-    stopTimer();
-  }
-}
+export const endTimer = (name: string, additionalMetadata?: Record<string, any>) => 
+  performanceMonitor.endTimer(name, additionalMetadata);
 
-/**
- * Optimize list rendering with windowing
- */
-export function createVirtualizedListConfig<T>(
-  itemHeight: number,
-  windowHeight: number
-) {
-  const visibleItemCount = Math.ceil(windowHeight / itemHeight) + 2;
-  
-  return {
-    getItemLayout: (data: T[] | null, index: number) => ({
-      length: itemHeight,
-      offset: itemHeight * index,
-      index,
-    }),
-    initialNumToRender: visibleItemCount,
-    maxToRenderPerBatch: visibleItemCount * 2,
-    windowSize: visibleItemCount * 2,
-    removeClippedSubviews: true,
-    keyExtractor: (item: T, index: number) => index.toString(),
-  };
-} 
+export const measureAsync = <T>(
+  name: string,
+  asyncFn: () => Promise<T>,
+  metadata?: Record<string, any>
+) => performanceMonitor.measureAsync(name, asyncFn, metadata);
+
+export const measureSync = <T>(
+  name: string,
+  syncFn: () => T,
+  metadata?: Record<string, any>
+) => performanceMonitor.measureSync(name, syncFn, metadata);
+
+export const getPerformanceReport = () => performanceMonitor.generateReport();
+
+export default performanceMonitor; 

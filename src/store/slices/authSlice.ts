@@ -1,5 +1,5 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import MockApiService from '../../services/MockApiService';
+import ApiService from '../../services/ApiService';
 
 export interface User {
   id: string;
@@ -27,14 +27,14 @@ export const sendOtp = createAsyncThunk(
   'auth/sendOtp',
   async (phone: string, { rejectWithValue }) => {
     try {
-      const api = MockApiService.getInstance();
+      const api = ApiService.getInstance();
       await api.initialize();
-      const result = await api.sendOtp(phone);
+      const result = await api.sendOtp({ phoneNumber: phone });
       
       if (result.success) {
         return { phone };
       } else {
-        return rejectWithValue(result.message);
+        return rejectWithValue('Failed to send OTP');
       }
     } catch (error) {
       return rejectWithValue('Failed to send OTP');
@@ -46,13 +46,17 @@ export const verifyOtp = createAsyncThunk(
   'auth/verifyOtp',
   async ({ phone, otp }: { phone: string; otp: string }, { rejectWithValue }) => {
     try {
-      const api = MockApiService.getInstance();
-      const result = await api.verifyOtp({ phone, otp });
+      const api = ApiService.getInstance();
+      const result = await api.verifyOtp({ phoneNumber: phone, otp });
       
-      if (result.success && result.user) {
-        return result.user;
+      if (result.success && result.data) {
+        return {
+          id: result.data.user.id,
+          name: result.data.user.name,
+          phone: result.data.user.phoneNumber,
+        };
       } else {
-        return rejectWithValue(result.message || 'Invalid OTP');
+        return rejectWithValue('Invalid OTP');
       }
     } catch (error) {
       return rejectWithValue('Failed to verify OTP');
@@ -64,7 +68,7 @@ export const logout = createAsyncThunk(
   'auth/logout',
   async (_, { rejectWithValue }) => {
     try {
-      const api = MockApiService.getInstance();
+      const api = ApiService.getInstance();
       const result = await api.logout();
       
       if (result.success) {
@@ -82,12 +86,16 @@ export const checkAuthStatus = createAsyncThunk(
   'auth/checkAuthStatus',
   async (_, { rejectWithValue }) => {
     try {
-      const api = MockApiService.getInstance();
+      const api = ApiService.getInstance();
       await api.initialize();
       const result = await api.getAuthStatus();
       
       if (result.isAuthenticated && result.user) {
-        return result.user;
+        return {
+          id: result.user.id,
+          name: result.user.name,
+          phone: result.user.phone || result.user.phoneNumber,
+        };
       } else {
         return rejectWithValue('Not authenticated');
       }

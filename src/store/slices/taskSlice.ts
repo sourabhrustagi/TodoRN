@@ -1,5 +1,5 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import MockApiService from '../../services/MockApiService';
+import ApiService from '../../services/ApiService';
 import { Task, Priority, CreateTaskRequest, UpdateTaskRequest } from '../../types';
 
 export interface TaskState {
@@ -14,15 +14,40 @@ const initialState: TaskState = {
   error: null,
 };
 
+// Helper function to convert API response to Task
+const convertApiTaskToTask = (apiTask: any): Task => {
+  return {
+    id: apiTask.id,
+    title: apiTask.title,
+    description: apiTask.description,
+    completed: apiTask.completed,
+    priority: apiTask.priority,
+    dueDate: apiTask.dueDate ? new Date(apiTask.dueDate) : null,
+    categoryId: apiTask.category.id,
+    createdAt: new Date(apiTask.createdAt),
+    updatedAt: new Date(apiTask.updatedAt),
+    userId: 'user_1', // Default user ID
+    tags: [],
+    repeatInterval: 'none',
+    attachments: [],
+    notes: '',
+  };
+};
+
 // Async thunks
 export const loadTasks = createAsyncThunk(
   'task/loadTasks',
   async (_, { rejectWithValue }) => {
     try {
-      const api = MockApiService.getInstance();
+      const api = ApiService.getInstance();
       await api.initialize();
-      const tasks = await api.getTasks();
-      return tasks;
+      const response = await api.getTasks();
+      
+      if (response.success && response.data) {
+        return response.data.tasks.map(convertApiTaskToTask);
+      } else {
+        return rejectWithValue('Failed to load tasks');
+      }
     } catch (error) {
       return rejectWithValue('Failed to load tasks');
     }
@@ -33,13 +58,21 @@ export const createTask = createAsyncThunk(
   'task/createTask',
   async (request: CreateTaskRequest, { rejectWithValue }) => {
     try {
-      const api = MockApiService.getInstance();
-      const result = await api.createTask(request);
+      const api = ApiService.getInstance();
+      const apiRequest = {
+        title: request.title,
+        description: request.description,
+        priority: request.priority,
+        categoryId: request.categoryId,
+        dueDate: request.dueDate ? request.dueDate.toISOString() : undefined,
+      };
       
-      if (result.success && result.task) {
-        return result.task;
+      const result = await api.createTask(apiRequest);
+      
+      if (result.success && result.data) {
+        return convertApiTaskToTask(result.data);
       } else {
-        return rejectWithValue(result.message || 'Failed to create task');
+        return rejectWithValue('Failed to create task');
       }
     } catch (error) {
       return rejectWithValue('Failed to create task');
@@ -51,13 +84,22 @@ export const updateTask = createAsyncThunk(
   'task/updateTask',
   async ({ taskId, updates }: { taskId: string; updates: UpdateTaskRequest }, { rejectWithValue }) => {
     try {
-      const api = MockApiService.getInstance();
-      const result = await api.updateTask(taskId, updates);
+      const api = ApiService.getInstance();
+      const apiRequest: any = {};
       
-      if (result.success && result.task) {
-        return result.task;
+      if (updates.title !== undefined) apiRequest.title = updates.title;
+      if (updates.description !== undefined) apiRequest.description = updates.description;
+      if (updates.priority !== undefined) apiRequest.priority = updates.priority;
+      if (updates.categoryId !== undefined) apiRequest.categoryId = updates.categoryId;
+      if (updates.dueDate !== undefined) apiRequest.dueDate = updates.dueDate ? updates.dueDate.toISOString() : null;
+      if (updates.completed !== undefined) apiRequest.completed = updates.completed;
+      
+      const result = await api.updateTask(taskId, apiRequest);
+      
+      if (result.success && result.data) {
+        return convertApiTaskToTask(result.data);
       } else {
-        return rejectWithValue(result.message || 'Failed to update task');
+        return rejectWithValue('Failed to update task');
       }
     } catch (error) {
       return rejectWithValue('Failed to update task');
@@ -70,7 +112,7 @@ export const deleteTask = createAsyncThunk(
   async (taskId: string, { rejectWithValue }) => {
     console.log('TaskSlice: deleteTask async thunk called for taskId:', taskId);
     try {
-      const api = MockApiService.getInstance();
+      const api = ApiService.getInstance();
       const result = await api.deleteTask(taskId);
       
       console.log('TaskSlice: deleteTask API result:', result);

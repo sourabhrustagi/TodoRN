@@ -1,228 +1,261 @@
-// Validation utilities for the Todo app
+import { APP_CONSTANTS } from '../constants/app';
+import logger from './logger';
 
-export interface ValidationResult {
-  isValid: boolean;
-  message?: string;
+// Validation error types
+export class ValidationError extends Error {
+  constructor(message: string, public field?: string) {
+    super(message);
+    this.name = 'ValidationError';
+  }
 }
 
-/**
- * Phone number validation
- */
-export function validatePhoneNumber(phone: string): ValidationResult {
-  if (!phone || phone.trim().length === 0) {
-    return { isValid: false, message: 'Phone number is required' };
-  }
-  
-  // Remove all non-digit characters except +
-  const cleaned = phone.replace(/[^\d+]/g, '');
-  
-  // Basic phone number validation - allow numbers with or without country code
-  const phoneRegex = /^(\+?[1-9]\d{1,14}|\d{10,15})$/;
-  
-  if (!phoneRegex.test(cleaned)) {
-    return { isValid: false, message: 'Please enter a valid phone number (10-15 digits)' };
-  }
-  
-  return { isValid: true };
-}
+// Common validation patterns
+export const patterns = {
+  email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+  phone: /^\+?[\d\s\-\(\)]{10,}$/,
+  otp: /^\d{6}$/,
+  url: /^https?:\/\/.+/,
+  date: /^\d{4}-\d{2}-\d{2}$/,
+  time: /^\d{2}:\d{2}$/,
+  password: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d@$!%*?&]{8,}$/,
+};
 
-/**
- * OTP validation
- */
-export function validateOtp(otp: string): ValidationResult {
-  if (!otp || otp.trim().length === 0) {
-    return { isValid: false, message: 'OTP is required' };
-  }
-  
-  if (otp.length !== 6) {
-    return { isValid: false, message: 'OTP must be 6 digits' };
-  }
-  
-  if (!/^\d{6}$/.test(otp)) {
-    return { isValid: false, message: 'OTP must contain only numbers' };
-  }
-  
-  return { isValid: true };
-}
+// Validation functions
+export const validators = {
+  required: (value: any): boolean => {
+    if (typeof value === 'string') {
+      return value.trim().length > 0;
+    }
+    return value !== null && value !== undefined;
+  },
 
-/**
- * Task title validation
- */
-export function validateTaskTitle(title: string): ValidationResult {
-  if (!title || title.trim().length === 0) {
-    return { isValid: false, message: 'Task title is required' };
-  }
-  
-  if (title.trim().length < 3) {
-    return { isValid: false, message: 'Task title must be at least 3 characters' };
-  }
-  
-  if (title.trim().length > 100) {
-    return { isValid: false, message: 'Task title must be less than 100 characters' };
-  }
-  
-  return { isValid: true };
-}
+  minLength: (min: number) => (value: string): boolean => {
+    return value.length >= min;
+  },
 
-/**
- * Task description validation
- */
-export function validateTaskDescription(description: string): ValidationResult {
-  if (!description) {
-    return { isValid: true }; // Description is optional
-  }
-  
-  if (description.trim().length > 500) {
-    return { isValid: false, message: 'Task description must be less than 500 characters' };
-  }
-  
-  return { isValid: true };
-}
+  maxLength: (max: number) => (value: string): boolean => {
+    return value.length <= max;
+  },
 
-/**
- * Email validation
- */
-export function validateEmail(email: string): ValidationResult {
-  if (!email || email.trim().length === 0) {
-    return { isValid: false, message: 'Email is required' };
-  }
-  
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  
-  if (!emailRegex.test(email)) {
-    return { isValid: false, message: 'Please enter a valid email address' };
-  }
-  
-  return { isValid: true };
-}
+  pattern: (regex: RegExp) => (value: string): boolean => {
+    return regex.test(value);
+  },
 
-/**
- * Password validation
- */
-export function validatePassword(password: string): ValidationResult {
-  if (!password || password.length === 0) {
-    return { isValid: false, message: 'Password is required' };
-  }
-  
-  if (password.length < 8) {
-    return { isValid: false, message: 'Password must be at least 8 characters' };
-  }
-  
-  if (password.length > 128) {
-    return { isValid: false, message: 'Password must be less than 128 characters' };
-  }
-  
-  // Check for at least one uppercase letter, one lowercase letter, and one number
-  const hasUpperCase = /[A-Z]/.test(password);
-  const hasLowerCase = /[a-z]/.test(password);
-  const hasNumbers = /\d/.test(password);
-  
-  if (!hasUpperCase || !hasLowerCase || !hasNumbers) {
-    return { 
-      isValid: false, 
-      message: 'Password must contain at least one uppercase letter, one lowercase letter, and one number' 
-    };
-  }
-  
-  return { isValid: true };
-}
+  email: (value: string): boolean => {
+    return patterns.email.test(value);
+  },
 
-/**
- * Feedback validation
- */
-export function validateFeedback(feedback: string): ValidationResult {
-  if (!feedback || feedback.trim().length === 0) {
-    return { isValid: false, message: 'Feedback is required' };
-  }
-  
-  if (feedback.trim().length < 10) {
-    return { isValid: false, message: 'Feedback must be at least 10 characters' };
-  }
-  
-  if (feedback.trim().length > 1000) {
-    return { isValid: false, message: 'Feedback must be less than 1000 characters' };
-  }
-  
-  return { isValid: true };
-}
+  phone: (value: string): boolean => {
+    return patterns.phone.test(value);
+  },
 
-/**
- * Date validation
- */
-export function validateDate(date: Date | null): ValidationResult {
-  if (!date) {
-    return { isValid: false, message: 'Date is required' };
-  }
-  
-  if (isNaN(date.getTime())) {
-    return { isValid: false, message: 'Please enter a valid date' };
-  }
-  
-  const now = new Date();
-  if (date < now) {
-    return { isValid: false, message: 'Date cannot be in the past' };
-  }
-  
-  return { isValid: true };
-}
+  otp: (value: string): boolean => {
+    return patterns.otp.test(value);
+  },
 
-/**
- * Priority validation
- */
-export function validatePriority(priority: string): ValidationResult {
-  const validPriorities = ['low', 'medium', 'high'];
-  
-  if (!validPriorities.includes(priority)) {
-    return { isValid: false, message: 'Priority must be low, medium, or high' };
-  }
-  
-  return { isValid: true };
-}
+  url: (value: string): boolean => {
+    return patterns.url.test(value);
+  },
 
-/**
- * Generic string validation
- */
-export function validateString(
-  value: string, 
-  options: {
-    required?: boolean;
-    minLength?: number;
-    maxLength?: number;
-    pattern?: RegExp;
-    customMessage?: string;
-  } = {}
-): ValidationResult {
-  const { required = true, minLength, maxLength, pattern, customMessage } = options;
-  
-  if (required && (!value || value.trim().length === 0)) {
-    return { isValid: false, message: customMessage || 'This field is required' };
-  }
-  
-  if (minLength && value.length < minLength) {
-    return { 
-      isValid: false, 
-      message: customMessage || `Must be at least ${minLength} characters` 
-    };
-  }
-  
-  if (maxLength && value.length > maxLength) {
-    return { 
-      isValid: false, 
-      message: customMessage || `Must be less than ${maxLength} characters` 
-    };
-  }
-  
-  if (pattern && !pattern.test(value)) {
-    return { isValid: false, message: customMessage || 'Invalid format' };
-  }
-  
-  return { isValid: true };
-}
+  date: (value: any): boolean => {
+    const date = new Date(value);
+    return !isNaN(date.getTime());
+  },
 
-/**
- * Get validation error message
- */
-export function getValidationError(field: string, value: any, validator: (value: any) => ValidationResult): string | null {
-  const result = validator(value);
-  return result.isValid ? null : result.message || `${field} is invalid`;
-} 
+  futureDate: (value: any): boolean => {
+    const date = new Date(value);
+    const now = new Date();
+    return date > now;
+  },
+
+  pastDate: (value: any): boolean => {
+    const date = new Date(value);
+    const now = new Date();
+    return date < now;
+  },
+
+  number: (value: any): boolean => {
+    return !isNaN(Number(value)) && isFinite(Number(value));
+  },
+
+  positive: (value: number): boolean => {
+    return value > 0;
+  },
+
+  range: (min: number, max: number) => (value: number): boolean => {
+    return value >= min && value <= max;
+  },
+
+  enum: (allowedValues: any[]) => (value: any): boolean => {
+    return allowedValues.includes(value);
+  },
+};
+
+// Field-specific validators
+export const fieldValidators = {
+  phone: (value: string): string[] => {
+    const errors: string[] = [];
+    
+    if (!validators.required(value)) {
+      errors.push('Phone number is required');
+    } else if (!validators.phone(value)) {
+      errors.push('Please enter a valid phone number');
+    } else if (!validators.minLength(APP_CONSTANTS.VALIDATION.PHONE_MIN_LENGTH)(value)) {
+      errors.push(`Phone number must be at least ${APP_CONSTANTS.VALIDATION.PHONE_MIN_LENGTH} characters`);
+    } else if (!validators.maxLength(APP_CONSTANTS.VALIDATION.PHONE_MAX_LENGTH)(value)) {
+      errors.push(`Phone number must be no more than ${APP_CONSTANTS.VALIDATION.PHONE_MAX_LENGTH} characters`);
+    }
+    
+    return errors;
+  },
+
+  otp: (value: string): string[] => {
+    const errors: string[] = [];
+    
+    if (!validators.required(value)) {
+      errors.push('OTP is required');
+    } else if (!validators.otp(value)) {
+      errors.push('OTP must be 6 digits');
+    }
+    
+    return errors;
+  },
+
+  email: (value: string): string[] => {
+    const errors: string[] = [];
+    
+    if (!validators.required(value)) {
+      errors.push('Email is required');
+    } else if (!validators.email(value)) {
+      errors.push('Please enter a valid email address');
+    }
+    
+    return errors;
+  },
+
+  taskTitle: (value: string): string[] => {
+    const errors: string[] = [];
+    
+    if (!validators.required(value)) {
+      errors.push('Task title is required');
+    } else if (!validators.minLength(APP_CONSTANTS.VALIDATION.TASK_TITLE_MIN_LENGTH)(value)) {
+      errors.push(`Title must be at least ${APP_CONSTANTS.VALIDATION.TASK_TITLE_MIN_LENGTH} characters`);
+    } else if (!validators.maxLength(APP_CONSTANTS.VALIDATION.TASK_TITLE_MAX_LENGTH)(value)) {
+      errors.push(`Title must be no more than ${APP_CONSTANTS.VALIDATION.TASK_TITLE_MAX_LENGTH} characters`);
+    }
+    
+    return errors;
+  },
+
+  taskDescription: (value: string): string[] => {
+    const errors: string[] = [];
+    
+    if (value && !validators.maxLength(APP_CONSTANTS.VALIDATION.TASK_DESCRIPTION_MAX_LENGTH)(value)) {
+      errors.push(`Description must be no more than ${APP_CONSTANTS.VALIDATION.TASK_DESCRIPTION_MAX_LENGTH} characters`);
+    }
+    
+    return errors;
+  },
+
+  feedback: (value: string): string[] => {
+    const errors: string[] = [];
+    
+    if (!validators.required(value)) {
+      errors.push('Feedback is required');
+    } else if (!validators.minLength(APP_CONSTANTS.VALIDATION.FEEDBACK_MIN_LENGTH)(value)) {
+      errors.push(`Feedback must be at least ${APP_CONSTANTS.VALIDATION.FEEDBACK_MIN_LENGTH} characters`);
+    } else if (!validators.maxLength(APP_CONSTANTS.VALIDATION.FEEDBACK_MAX_LENGTH)(value)) {
+      errors.push(`Feedback must be no more than ${APP_CONSTANTS.VALIDATION.FEEDBACK_MAX_LENGTH} characters`);
+    }
+    
+    return errors;
+  },
+
+  password: (value: string): string[] => {
+    const errors: string[] = [];
+    
+    if (!validators.required(value)) {
+      errors.push('Password is required');
+    } else if (!validators.minLength(APP_CONSTANTS.VALIDATION.PASSWORD_MIN_LENGTH)(value)) {
+      errors.push(`Password must be at least ${APP_CONSTANTS.VALIDATION.PASSWORD_MIN_LENGTH} characters`);
+    } else if (!validators.maxLength(APP_CONSTANTS.VALIDATION.PASSWORD_MAX_LENGTH)(value)) {
+      errors.push(`Password must be no more than ${APP_CONSTANTS.VALIDATION.PASSWORD_MAX_LENGTH} characters`);
+    }
+    
+    return errors;
+  },
+};
+
+// Form validation
+export const validateForm = (
+  formData: Record<string, any>,
+  validators: Record<string, (value: any) => string[]>
+): Record<string, string[]> => {
+  const errors: Record<string, string[]> = {};
+
+  for (const [field, value] of Object.entries(formData)) {
+    const validator = validators[field];
+    if (validator) {
+      const fieldErrors = validator(value);
+      if (fieldErrors.length > 0) {
+        errors[field] = fieldErrors;
+      }
+    }
+  }
+
+  logger.debug('Form validation result', { errors });
+  return errors;
+};
+
+// Validate single field
+export const validateField = (
+  value: any,
+  validator: (value: any) => string[]
+): { isValid: boolean; errors: string[] } => {
+  const errors = validator(value);
+  return {
+    isValid: errors.length === 0,
+    errors,
+  };
+};
+
+// Check if form is valid
+export const isFormValid = (errors: Record<string, string[]>): boolean => {
+  return Object.keys(errors).length === 0;
+};
+
+// Get first error from form
+export const getFirstError = (errors: Record<string, string[]>): string | null => {
+  for (const fieldErrors of Object.values(errors)) {
+    if (fieldErrors.length > 0) {
+      return fieldErrors[0];
+    }
+  }
+  return null;
+};
+
+// Sanitize input
+export const sanitizeInput = (input: string): string => {
+  return input
+    .trim()
+    .replace(/[<>]/g, '') // Remove potential HTML tags
+    .replace(/\s+/g, ' '); // Normalize whitespace
+};
+
+// Format validation error message
+export const formatValidationError = (field: string, error: string): string => {
+  return `${field.charAt(0).toUpperCase() + field.slice(1)}: ${error}`;
+};
+
+export default {
+  patterns,
+  validators,
+  fieldValidators,
+  validateForm,
+  validateField,
+  isFormValid,
+  getFirstError,
+  sanitizeInput,
+  formatValidationError,
+  ValidationError,
+}; 

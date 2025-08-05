@@ -1,0 +1,36 @@
+{
+  "expo": {
+    "name": "TodoRN (Dev)",
+    "slug": "TodoRN-dev",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.todorn.app.dev"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#4CAF50"
+      },
+      "package": "com.todorn.app.dev",
+      "permissions": [
+        "INTERNET",
+        "ACCESS_NETWORK_STATE"
+      ]
+    },
+    "web": {},
+    "extra": {
+      "eas": {
+        "projectId": "your-project-id"
+      },
+      "environment": "development"
+    },
+    "plugins": [
+      "expo-constants"
+    ]
+  }
+} 
