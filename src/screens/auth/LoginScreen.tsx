@@ -6,7 +6,8 @@ import {
   Platform, 
   Alert,
   Animated,
-  Dimensions
+  Dimensions,
+  Image
 } from 'react-native';
 import { 
   TextInput, 
@@ -119,6 +120,17 @@ const LoginScreen: React.FC = () => {
           <Surface style={[styles.card, { backgroundColor: theme.colors.surface }]}>
             {/* Header */}
             <View style={styles.header}>
+              {/* Random Image */}
+              <View style={styles.imageContainer}>
+                <Image
+                  source={{ 
+                    uri: 'https://picsum.photos/200/200?random=' + Math.floor(Math.random() * 1000)
+                  }}
+                  style={styles.loginImage}
+                  resizeMode="cover"
+                />
+              </View>
+              
               <Text 
                 variant="headlineLarge" 
                 style={[styles.title, { color: theme.colors.onSurface }]}
@@ -293,6 +305,17 @@ const styles = StyleSheet.create({
   },
   buttonContent: {
     height: 48,
+  },
+  imageContainer: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    overflow: 'hidden',
+    marginBottom: 20,
+  },
+  loginImage: {
+    width: '100%',
+    height: '100%',
   },
 
   snackbar: {
